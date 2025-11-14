@@ -1,7 +1,7 @@
 # Multi-stage build for optimized image size
 
 # Stage 1: Build stage
-FROM maven:3.8.6-openjdk-18 AS build
+FROM maven:3.8.6-openjdk-11 AS build
 WORKDIR /app
 
 # Copy pom.xml and download dependencies (cached layer)
@@ -13,7 +13,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime stage
-FROM openjdk:18-jdk-alpine
+FROM openjdk:11-jdk-alpine
 WORKDIR /app
 
 # Add metadata
