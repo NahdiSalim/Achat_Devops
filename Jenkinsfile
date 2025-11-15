@@ -184,9 +184,20 @@ pipeline {
 
                     // Determine repository (snapshot or release)
                     def repository = version.endsWith('SNAPSHOT') ? NEXUS_SNAPSHOT_REPOSITORY : NEXUS_REPOSITORY
+                    def jarFile = "target/${artifactId}-${version}.${packaging}"
 
                     echo "Artifact: ${groupId}:${artifactId}:${version}"
                     echo "Repository: ${repository}"
+                    echo "JAR File: ${jarFile}"
+
+                    // Verify JAR file exists
+                    def jarExists = fileExists(jarFile)
+                    if (!jarExists) {
+                        echo "⚠️  WARNING: JAR file not found at ${jarFile}"
+                        echo "⚠️  Listing target directory contents:"
+                        sh 'ls -la target/*.jar || echo "No JAR files found"'
+                        error("JAR file not found: ${jarFile}")
+                    }
 
                     // Upload artifact to Nexus using Nexus Artifact Uploader plugin
                     try {
@@ -199,14 +210,18 @@ pipeline {
                             repository: repository,
                             credentialsId: NEXUS_CREDENTIAL_ID,
                             artifacts: [
-                                [artifactId: artifactId,
-                                 classifier: '',
-                                 file: "target/${artifactId}-${version}.jar",
-                                 type: 'jar'],
-                                [artifactId: artifactId,
-                                 classifier: '',
-                                 file: 'pom.xml',
-                                 type: 'pom']
+                                [
+                                    artifactId: artifactId,
+                                    classifier: '',
+                                    file: jarFile,
+                                    type: packaging
+                                ],
+                                [
+                                    artifactId: artifactId,
+                                    classifier: '',
+                                    file: 'pom.xml',
+                                    type: 'pom'
+                                ]
                             ]
                         )
 
@@ -214,6 +229,8 @@ pipeline {
                         echo "📦 View at: ${NEXUS_URL}/#browse/browse:${repository}"
                     } catch (Exception e) {
                         echo "⚠️  Nexus upload failed: ${e.message}"
+                        echo '⚠️  Error details:'
+                        e.printStackTrace()
                         echo '⚠️  Continuing pipeline anyway...'
                         // Don't fail the build for Nexus upload issues
                         currentBuild.result = 'UNSTABLE'
