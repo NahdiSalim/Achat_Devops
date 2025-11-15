@@ -346,9 +346,9 @@ pipeline {
         }
 
         stage('☸️  DEPLOY TO KUBERNETES') {
+            // Kubernetes deployment stage (requires kubectl configured)
             when {
-                // Only deploy on main branch
-                branch 'main'
+                expression { return false }  // Disabled by default - enable when K8s cluster is ready
             }
             steps {
                 echo '======================================'
@@ -389,11 +389,8 @@ pipeline {
 
         stage('🏗️  TERRAFORM INFRASTRUCTURE') {
             when {
-                // Only run on main branch and if terraform should be applied
-                allOf {
-                    branch 'main'
-                    environment name: 'DEPLOY_TO_AWS', value: 'true'
-                }
+                // Only run if terraform should be applied
+                environment name: 'DEPLOY_TO_AWS', value: 'true'
             }
             steps {
                 echo '======================================'
