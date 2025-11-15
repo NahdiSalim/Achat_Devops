@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: achat-ingress
+  namespace: default
+  labels:
+    app: achat
+  annotations:
+    # NGINX Ingress Controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    
+    # AWS ALB Ingress Controller annotations (uncomment for AWS)
+    # kubernetes.io/ingress.class: alb
+    # alb.ingress.kubernetes.io/scheme: internet-facing
+    # alb.ingress.kubernetes.io/target-type: ip
+    # alb.ingress.kubernetes.io/healthcheck-path: /SpringMVC/actuator/health
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: achat.local  # Change to your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: achat-service
+            port:
+              number: 8089
+  # TLS configuration (optional)
+  # tls:
+  # - hosts:
+  #   - achat.local
+  #   secretName: achat-tls-secret
+

@@ -188,51 +188,36 @@ pipeline {
                     echo "Artifact: ${groupId}:${artifactId}:${version}"
                     echo "Repository: ${repository}"
 
-                    // Upload artifact to Nexus with proper authentication
-                    withCredentials([usernamePassword(credentialsId: NEXUS_CREDENTIAL_ID,
-                                                      usernameVariable: 'NEXUS_USER',
-                                                      passwordVariable: 'NEXUS_PASSWORD')]) {
-                        
-                        // Create temporary Maven settings.xml with Nexus credentials
-                        sh """
-                            cat > settings.xml << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
-  <servers>
-    <server>
-      <id>nexus</id>
-      <username>\${env.NEXUS_USER}</username>
-      <password>\${env.NEXUS_PASSWORD}</password>
-    </server>
-  </servers>
-</settings>
-EOF
-                        """
-                        
-                        // Deploy artifact using the settings file
-                        sh """
-                            ./mvnw deploy:deploy-file \
-                                -s settings.xml \
-                                -DgroupId=${groupId} \
-                                -DartifactId=${artifactId} \
-                                -Dversion=${version} \
-                                -Dpackaging=${packaging} \
-                                -Dfile=target/${artifactId}-${version}.jar \
-                                -DrepositoryId=nexus \
-                                -Durl=${NEXUS_URL}/repository/${repository} \
-                                -DgeneratePom=false \
-                                -DpomFile=pom.xml \
-                                -B
-                        """
-                        
-                        // Clean up settings file
-                        sh "rm -f settings.xml"
-                    }
+                    // Upload artifact to Nexus using Nexus Artifact Uploader plugin
+                    try {
+                        nexusArtifactUploader(
+                            nexusVersion: 'nexus3',
+                            protocol: 'http',
+                            nexusUrl: 'achat-nexus:8081',
+                            groupId: groupId,
+                            version: version,
+                            repository: repository,
+                            credentialsId: NEXUS_CREDENTIAL_ID,
+                            artifacts: [
+                                [artifactId: artifactId,
+                                 classifier: '',
+                                 file: "target/${artifactId}-${version}.jar",
+                                 type: 'jar'],
+                                [artifactId: artifactId,
+                                 classifier: '',
+                                 file: 'pom.xml',
+                                 type: 'pom']
+                            ]
+                        )
 
-                    echo '✅ Artifact published to Nexus!'
-                    echo "📦 View at: ${NEXUS_URL}/#browse/browse:${repository}"
+                        echo '✅ Artifact published to Nexus!'
+                        echo "📦 View at: ${NEXUS_URL}/#browse/browse:${repository}"
+                    } catch (Exception e) {
+                        echo "⚠️  Nexus upload failed: ${e.message}"
+                        echo '⚠️  Continuing pipeline anyway...'
+                        // Don't fail the build for Nexus upload issues
+                        currentBuild.result = 'UNSTABLE'
+                    }
                 }
             }
         }

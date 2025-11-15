@@ -1,0 +1,50 @@
+---
+# ClusterIP Service for internal communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: achat-service
+  namespace: default
+  labels:
+    app: achat
+    tier: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8089
+    targetPort: 8089
+    protocol: TCP
+    name: http
+  selector:
+    app: achat
+    tier: backend
+
+---
+# LoadBalancer Service for external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: achat-loadbalancer
+  namespace: default
+  labels:
+    app: achat
+    tier: backend
+  annotations:
+    # AWS ELB annotations (uncomment for AWS)
+    # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    # service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8089
+    protocol: TCP
+    name: http
+  selector:
+    app: achat
+    tier: backend
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+

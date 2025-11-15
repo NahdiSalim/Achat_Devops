@@ -13,7 +13,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime stage
-FROM openjdk:11-jdk-alpine
+FROM adoptopenjdk/openjdk11:alpine-jre
 WORKDIR /app
 
 # Add metadata
