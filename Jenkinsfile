@@ -194,7 +194,7 @@ pipeline {
                     def jarExists = fileExists(jarFile)
                     if (!jarExists) {
                         echo "⚠️  WARNING: JAR file not found at ${jarFile}"
-                        echo "⚠️  Listing target directory contents:"
+                        echo '⚠️  Listing target directory contents:'
                         sh 'ls -la target/*.jar || echo "No JAR files found"'
                         error("JAR file not found: ${jarFile}")
                     }
