@@ -24,6 +24,9 @@ pipeline {
         // Application Configuration
         APP_NAME = 'achat'
         APP_VERSION = "${env.BUILD_NUMBER}"
+
+        // AWS/Terraform Configuration
+        DEPLOY_TO_AWS = 'true'  // Set to 'true' to enable Terraform infrastructure provisioning
     }
 
     stages {
@@ -399,15 +402,32 @@ pipeline {
 
                 script {
                     dir('terraform') {
-                        withCredentials([aws(credentialsId: 'aws-credentials')]) {
+                        withCredentials([
+                            string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                            string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                            string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                        ]) {
                             sh '''
+                                # Export AWS credentials
+                                export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                                export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                                export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+                                export AWS_DEFAULT_REGION="us-east-1"
+
+                                # Test AWS connection
+                                echo "Testing AWS credentials..."
+                                aws sts get-caller-identity
+
                                 # Initialize Terraform
+                                echo "Initializing Terraform..."
                                 terraform init
 
                                 # Validate configuration
+                                echo "Validating Terraform configuration..."
                                 terraform validate
 
                                 # Plan infrastructure changes
+                                echo "Creating Terraform plan..."
                                 terraform plan -out=tfplan
 
                                 # Apply changes (with auto-approve for automation)
