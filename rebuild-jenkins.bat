@@ -1,25 +1,62 @@
 @echo off
-echo 🔄 Rebuilding Jenkins with Docker support...
+echo ========================================
+echo   Rebuilding Jenkins with Terraform
+echo ========================================
 echo.
-
-REM Stop and remove old Jenkins container
+echo This will install:
+echo - Docker CLI
+echo - Maven
+echo - Terraform
+echo - kubectl
+echo - AWS CLI
+echo.
+echo Stopping Jenkins...
 docker-compose stop jenkins
+
+echo Removing old container...
 docker-compose rm -f jenkins
 
-REM Build new Jenkins image with Docker CLI
+echo Building new Jenkins image (this may take 5-10 minutes)...
 docker-compose build jenkins
 
-REM Start Jenkins
+echo Starting Jenkins...
 docker-compose up -d jenkins
 
 echo.
-echo ✅ Jenkins rebuilt successfully!
+echo Waiting for Jenkins to start (60 seconds)...
+timeout /t 60 /nobreak
+
 echo.
-echo 📋 Verifying Docker installation in Jenkins...
+echo ========================================
+echo   Verifying installations...
+echo ========================================
+echo.
+
+echo Checking Terraform:
+docker exec -u root achat-jenkins terraform version
+
+echo.
+echo Checking kubectl:
+docker exec -u root achat-jenkins kubectl version --client
+
+echo.
+echo Checking AWS CLI:
+docker exec -u root achat-jenkins aws --version
+
+echo.
+echo Checking Docker:
 docker exec -u root achat-jenkins docker --version
 
 echo.
-echo 🎉 Done! Jenkins now has Docker support
-echo 🌐 Access Jenkins at: http://localhost:8080
+echo ========================================
+echo   Jenkins rebuilt successfully!
+echo ========================================
+echo.
+echo Jenkins URL: http://localhost:8080
+echo.
+echo Next steps:
+echo 1. Configure AWS credentials in Jenkins
+echo 2. Read: TERRAFORM-IN-JENKINS.md
+echo 3. Run: run-terraform.bat init
+echo.
 pause
-
