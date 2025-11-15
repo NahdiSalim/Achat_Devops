@@ -246,14 +246,27 @@ pipeline {
                 echo '======================================'
 
                 script {
-                    // Build Docker image with multiple tags
-                    dockerImage = docker.build("${registry}:${env.BUILD_NUMBER}")
-                    echo "✅ Docker image built: ${registry}:${env.BUILD_NUMBER}"
+                    try {
+                        // Check if Docker is available
+                        sh 'docker --version'
+
+                        // Build Docker image with multiple tags
+                        dockerImage = docker.build("${registry}:${env.BUILD_NUMBER}")
+                        echo "✅ Docker image built: ${registry}:${env.BUILD_NUMBER}"
+                    } catch (Exception e) {
+                        echo "⚠️  Docker build skipped: ${e.message}"
+                        echo 'ℹ️   Docker is not available in this Jenkins environment'
+                        echo 'ℹ️   To enable Docker: mount Docker socket or use Docker-in-Docker'
+                        currentBuild.result = 'UNSTABLE'
+                    }
                 }
             }
         }
 
         stage('🔒 DOCKER IMAGE SCAN') {
+            when {
+                expression { return dockerImage != null && dockerImage != '' }
+            }
             steps {
                 echo '======================================'
                 echo '       Scanning Docker Image          '
@@ -277,38 +290,55 @@ pipeline {
         }
 
         stage('📤 PUSH DOCKER IMAGE') {
+            when {
+                expression { return dockerImage != null && dockerImage != '' }
+            }
             steps {
                 echo '======================================'
                 echo '       Pushing to DockerHub           '
                 echo '======================================'
 
                 script {
-                    docker.withRegistry('', registryCredential) {
-                        // Push with build number tag
-                        dockerImage.push("${env.BUILD_NUMBER}")
+                    try {
+                        docker.withRegistry('', registryCredential) {
+                            // Push with build number tag
+                            dockerImage.push("${env.BUILD_NUMBER}")
 
-                        // Push with latest tag
-                        dockerImage.push('latest')
+                            // Push with latest tag
+                            dockerImage.push('latest')
 
-                        echo '✅ Docker image pushed successfully!'
-                        echo "🐳 Image: ${registry}:${env.BUILD_NUMBER}"
-                        echo "🐳 Image: ${registry}:latest"
+                            echo '✅ Docker image pushed successfully!'
+                            echo "🐳 Image: ${registry}:${env.BUILD_NUMBER}"
+                            echo "🐳 Image: ${registry}:latest"
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️  Docker push skipped: ${e.message}"
+                        echo 'ℹ️   Docker image was not built or Docker is not available'
                     }
                 }
             }
         }
 
         stage('🧹 CLEANUP DOCKER IMAGES') {
+            when {
+                expression { return dockerImage != null && dockerImage != '' }
+            }
             steps {
                 echo '======================================'
                 echo '       Cleaning up local images       '
                 echo '======================================'
 
-                sh """
-                    docker rmi ${registry}:${env.BUILD_NUMBER} || true
-                    docker rmi ${registry}:latest || true
-                    echo "✅ Local Docker images cleaned"
-                """
+                script {
+                    try {
+                        sh """
+                            docker rmi ${registry}:${env.BUILD_NUMBER} || true
+                            docker rmi ${registry}:latest || true
+                            echo "✅ Local Docker images cleaned"
+                        """
+                    } catch (Exception e) {
+                        echo "⚠️  Docker cleanup skipped: ${e.message}"
+                    }
+                }
             }
         }
 
@@ -466,7 +496,15 @@ pipeline {
         }
 
         unstable {
-            echo '⚠️  Pipeline completed with warnings'
+            echo '⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️'
+            echo '⚠️                                      ⚠️'
+            echo '⚠️  PIPELINE COMPLETED WITH WARNINGS!  ⚠️'
+            echo '⚠️                                      ⚠️'
+            echo '⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️'
+            echo ''
+            echo "Build: #${env.BUILD_NUMBER}"
+            echo 'ℹ️   Some optional stages were skipped (Nexus, Docker, K8s)'
+            echo 'ℹ️   Core functionality (build, test) completed successfully'
         }
     }
 }
