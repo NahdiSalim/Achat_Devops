@@ -388,10 +388,6 @@ pipeline {
         }
 
         stage('🏗️  TERRAFORM INFRASTRUCTURE') {
-            when {
-                // Only run if terraform should be applied
-                environment name: 'DEPLOY_TO_AWS', value: 'true'
-            }
             steps {
                 echo '======================================'
                 echo '       Provisioning Infrastructure    '
