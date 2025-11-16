@@ -37,3 +37,29 @@ variable "private_subnet_cidrs" {
   type        = list(string)
   default     = ["10.0.10.0/24", "10.0.11.0/24"]
 }
+
+# EC2 Configuration
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t2.medium"  # 2 vCPU, 4 GB RAM - good for Docker containers
+}
+
+variable "key_name" {
+  description = "SSH key pair name (must exist in AWS)"
+  type        = string
+  default     = ""  # Leave empty if no SSH access needed
+}
+
+# Docker Configuration
+variable "docker_image" {
+  description = "Docker image for the application"
+  type        = string
+  default     = "salimnadi/achat"  # Your DockerHub repository
+}
+
+variable "docker_tag" {
+  description = "Docker image tag"
+  type        = string
+  default     = "latest"
+}

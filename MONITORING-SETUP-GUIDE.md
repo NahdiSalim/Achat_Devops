@@ -1,474 +1,449 @@
-# 📊 Prometheus & Grafana Monitoring Setup - Step by Step
+# 📊 Prometheus & Grafana Monitoring Setup Guide
 
-## Overview
-Set up complete monitoring for your application with Prometheus and Grafana.
-
----
-
-## What You'll Monitor
-
-- **Application Metrics**: Request count, response times, errors
-- **JVM Metrics**: Memory, threads, garbage collection
-- **System Metrics**: CPU, memory, disk usage
-- **Custom Metrics**: Business metrics from your app
+Complete guide to set up and use Prometheus and Grafana for monitoring your Achat application.
 
 ---
 
-## Step 1: Verify Prometheus is Running
+## 📋 Table of Contents
+1. [Local Setup](#-local-setup)
+2. [Testing Monitoring](#-testing-monitoring)
+3. [Understanding Dashboards](#-understanding-dashboards)
+4. [AWS Deployment](#-aws-deployment)
+5. [Troubleshooting](#-troubleshooting)
 
-Your `docker-compose.yml` already has Prometheus!
+---
+
+## 🏠 Local Setup
+
+### Step 1: Start All Services
 
 ```bash
-# Check Prometheus container
-docker ps | grep prometheus
+# Start the entire stack (MySQL, App, Jenkins, SonarQube, Nexus, Prometheus, Grafana)
+docker-compose up -d
 
-# View Prometheus logs
-docker logs achat-prometheus
-
-# Access Prometheus UI
+# Check if all containers are running
+docker-compose ps
 ```
-Open: **http://localhost:9090**
 
----
+You should see these containers running:
+- `achat-app` (Port 8089)
+- `achat-mysql` (Port 3306)
+- `achat-prometheus` (Port 9090)
+- `achat-grafana` (Port 3000)
+- `achat-jenkins` (Port 8080)
+- `achat-sonarqube` (Port 9000)
+- `achat-nexus` (Port 8081)
 
-## Step 2: Verify Grafana is Running
+### Step 2: Wait for Application to Start
 
 ```bash
-# Check Grafana container
-docker ps | grep grafana
+# Watch application logs
+docker logs -f achat-app
 
-# View Grafana logs
-docker logs achat-grafana
-
-# Access Grafana UI
+# Wait for this message:
+# "Started AchatApplication in X seconds"
 ```
-Open: **http://localhost:3000**
-
-**Login:**
-- Username: `admin`
-- Password: `admin`
-- (Change password when prompted)
 
 ---
 
-## Step 3: Configure Prometheus Data Source in Grafana
+## ✅ Testing Monitoring
 
-### Manual Setup:
-1. Open Grafana: http://localhost:3000
-2. Login (admin/admin)
-3. Go to **Configuration** (⚙️) → **Data Sources**
-4. Click **Add data source**
-5. Select **Prometheus**
-6. Configure:
-   - Name: `Prometheus`
-   - URL: `http://prometheus:9090`
-   - Access: `Server (default)`
-7. Click **Save & Test**
-8. You should see: ✅ **Data source is working**
+### Step 1: Verify Prometheus Metrics Endpoint
+
+Open your browser and go to:
+
+**Application Metrics:**
+```
+http://localhost:8089/SpringMVC/actuator/prometheus
+```
+
+You should see Prometheus metrics like:
+```
+# HELP jvm_memory_used_bytes The amount of used memory
+# TYPE jvm_memory_used_bytes gauge
+jvm_memory_used_bytes{area="heap",id="PS Eden Space",} 1.234567E7
+...
+```
+
+**All Actuator Endpoints:**
+```
+http://localhost:8089/SpringMVC/actuator
+```
+
+**Health Check:**
+```
+http://localhost:8089/SpringMVC/actuator/health
+```
+
+### Step 2: Access Prometheus
+
+1. **Open Prometheus:**
+   ```
+   http://localhost:9090
+   ```
+
+2. **Check Targets:**
+   - Click **"Status" → "Targets"**
+   - Look for `achat-application` target
+   - Should show **"UP"** in green
+
+3. **Run a Query:**
+   - Go to **"Graph"** tab
+   - Enter query: `up{job="achat-application"}`
+   - Click **"Execute"**
+   - Should return value `1` (meaning up)
+
+4. **Try More Queries:**
+   ```promql
+   # CPU Usage
+   system_cpu_usage{application="achat"} * 100
+
+   # Memory Usage
+   jvm_memory_used_bytes{application="achat"}
+
+   # HTTP Request Rate
+   rate(http_server_requests_seconds_count{application="achat"}[5m])
+
+   # Database Connections
+   hikaricp_connections_active{application="achat"}
+   ```
+
+### Step 3: Access Grafana
+
+1. **Open Grafana:**
+   ```
+   http://localhost:3000
+   ```
+
+2. **Login:**
+   - Username: `admin`
+   - Password: `admin`
+   - (You can skip changing the password or set a new one)
+
+3. **Verify Datasource:**
+   - Go to **"Configuration" (⚙️) → "Data sources"**
+   - You should see **"Prometheus"** already configured
+   - Click on it and scroll down
+   - Click **"Save & Test"** - should show green checkmark ✅
+
+4. **Open the Dashboard:**
+   - Go to **"Dashboards" (☰) → "Browse"**
+   - Click on **"Achat Application Monitoring"**
+
+5. **What You'll See:**
+   - **Application Status** - Shows if app is UP (1) or DOWN (0)
+   - **HTTP Request Rate** - Number of requests per second
+   - **CPU Usage** - System CPU utilization
+   - **JVM Memory Usage** - Heap and non-heap memory
+   - **Database Connection Pool** - Active and idle DB connections
+   - **HTTP Response Time** - Average response time for endpoints
 
 ---
 
-## Step 4: Update Prometheus Configuration
+## 📊 Understanding Dashboards
 
-Your `prometheus.yml` should already be configured. Let's verify:
+### Application Status Panel
+- **1** = Application is UP ✅
+- **0** = Application is DOWN ❌
+
+### HTTP Request Rate
+- Shows requests/second for each endpoint
+- Helps identify:
+  - High traffic periods
+  - Most frequently used endpoints
+  - Traffic patterns
+
+### CPU Usage
+- Shows system CPU utilization %
+- **Normal:** 0-50%
+- **High:** 50-80%
+- **Critical:** 80-100%
+
+### JVM Memory Usage
+- **Heap:** Application object memory
+- **Non-Heap:** Class metadata, compiled code
+- Watch for memory leaks (constantly increasing)
+
+### Database Connection Pool
+- **Active:** Connections in use
+- **Idle:** Available connections
+- If active = max pool size → need more connections
+
+### HTTP Response Time
+- Average response time per endpoint
+- **Good:** < 100ms
+- **Acceptable:** 100-500ms
+- **Slow:** > 500ms
+
+---
+
+## 🚀 AWS Deployment
+
+### Prerequisites
+- AWS Account (with valid credentials)
+- Terraform installed in Jenkins ✅ (already done!)
+- AWS credentials configured in Jenkins ✅ (already done!)
+
+### Step 1: Review Terraform Configuration
+
+Your current Terraform setup (`terraform/main.tf`) creates:
+- ✅ VPC with public/private subnets
+- ✅ Internet Gateway
+- ✅ Security Groups
+- ✅ Route Tables
+
+**To add EC2 instances and monitoring, we need to extend it.**
+
+### Step 2: Deploy Basic Infrastructure
+
+1. **In Jenkins, run the pipeline:**
+   ```
+   Build Now
+   ```
+
+2. **Check the Terraform stage output** - it should show:
+   - AWS credentials verified ✅
+   - Terraform initialized ✅
+   - Configuration validated ✅
+   - Plan created ✅
+
+3. **To actually create the infrastructure**, connect to Jenkins container:
+   ```bash
+   docker exec -it achat-jenkins bash
+   cd /var/jenkins_home/workspace/Achat_pipeline/terraform
+   
+   # Export AWS credentials (get fresh ones from AWS!)
+   export AWS_ACCESS_KEY_ID="your-access-key"
+   export AWS_SECRET_ACCESS_KEY="your-secret-key"
+   export AWS_SESSION_TOKEN="your-session-token"
+   export AWS_DEFAULT_REGION="us-east-1"
+   
+   # Apply the infrastructure
+   terraform apply -auto-approve
+   ```
+
+4. **After successful apply**, you'll see:
+   - VPC ID
+   - Subnet IDs
+   - Security Group ID
+
+### Step 3: Deploy Application to AWS
+
+**Option A: Deploy to EC2 Instances**
+
+You'll need to:
+1. Create EC2 instances in the VPC
+2. Install Docker on EC2
+3. Pull and run your Docker image
+4. Install Prometheus and Grafana on separate EC2 instances
+
+**Option B: Use AWS ECS/EKS (Recommended for Production)**
+
+1. **ECS (Elastic Container Service):**
+   - Simpler, managed container orchestration
+   - Good for Docker containers
+   - Less operational overhead
+
+2. **EKS (Elastic Kubernetes Service):**
+   - Full Kubernetes cluster
+   - More complex but more powerful
+   - Better for microservices
+
+### Step 4: Monitoring in AWS
+
+**CloudWatch (AWS Native):**
+- Automatically available
+- Good for basic metrics
+- Integrates with AWS services
+
+**Prometheus + Grafana on AWS:**
+1. **Deploy Prometheus on EC2:**
+   - Create EC2 instance
+   - Install Prometheus
+   - Configure to scrape your app instances
+
+2. **Deploy Grafana on EC2:**
+   - Create EC2 instance
+   - Install Grafana
+   - Configure Prometheus datasource
+
+3. **Use AWS Managed Services:**
+   - **Amazon Managed Service for Prometheus (AMP)**
+   - **Amazon Managed Grafana (AMG)**
+   - No server management
+   - Pay-as-you-go pricing
+
+---
+
+## 🔧 Troubleshooting
+
+### Prometheus Not Scraping Application
+
+**Problem:** Prometheus shows target as "DOWN"
+
+**Solutions:**
+1. Check if app is running:
+   ```bash
+   docker logs achat-app
+   curl http://localhost:8089/SpringMVC/actuator/health
+   ```
+
+2. Check if metrics endpoint works:
+   ```bash
+   curl http://localhost:8089/SpringMVC/actuator/prometheus
+   ```
+
+3. Check Prometheus logs:
+   ```bash
+   docker logs achat-prometheus
+   ```
+
+4. Verify prometheus.yml configuration:
+   ```bash
+   cat prometheus.yml
+   ```
+
+### Grafana Dashboard Shows "No Data"
+
+**Solutions:**
+1. **Check datasource:**
+   - Go to Grafana → Configuration → Data sources
+   - Click "Test" on Prometheus datasource
+
+2. **Check time range:**
+   - Dashboard might be looking at wrong time period
+   - Click time picker (top right)
+   - Select "Last 15 minutes"
+
+3. **Check if metrics exist in Prometheus:**
+   - Go to Prometheus (http://localhost:9090)
+   - Run query: `up{job="achat-application"}`
+   - If returns nothing → app not sending metrics
+
+4. **Generate some traffic:**
+   ```bash
+   # Make some requests to generate metrics
+   curl http://localhost:8089/SpringMVC/actuator/health
+   curl http://localhost:8089/SpringMVC/
+   ```
+
+### Application Metrics Not Showing
+
+**Solutions:**
+1. **Verify Actuator dependency in pom.xml:**
+   ```xml
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-actuator</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>io.micrometer</groupId>
+       <artifactId>micrometer-registry-prometheus</artifactId>
+   </dependency>
+   ```
+
+2. **Check application.properties:**
+   ```properties
+   management.endpoints.web.exposure.include=*
+   management.metrics.export.prometheus.enabled=true
+   ```
+
+3. **Rebuild application:**
+   ```bash
+   mvn clean package
+   docker-compose down
+   docker-compose build app
+   docker-compose up -d
+   ```
+
+### Grafana Dashboard Not Loading
+
+**Solutions:**
+1. **Check provisioning logs:**
+   ```bash
+   docker logs achat-grafana
+   ```
+
+2. **Manually import dashboard:**
+   - Go to Grafana → Dashboards → Import
+   - Upload `grafana/provisioning/dashboards/achat-dashboard.json`
+
+3. **Restart Grafana:**
+   ```bash
+   docker-compose restart grafana
+   ```
+
+---
+
+## 📚 Useful Commands
 
 ```bash
-cat prometheus.yml
+# View all container logs
+docker-compose logs -f
+
+# View specific service logs
+docker logs -f achat-app
+docker logs -f achat-prometheus
+docker logs -f achat-grafana
+
+# Restart monitoring stack
+docker-compose restart prometheus grafana
+
+# Rebuild everything
+docker-compose down
+docker-compose build
+docker-compose up -d
+
+# Check container health
+docker-compose ps
+docker inspect achat-app | grep -i health
+
+# Access Prometheus CLI
+docker exec -it achat-prometheus sh
+
+# Access Grafana CLI
+docker exec -it achat-grafana sh
+
+# Export Grafana dashboard
+# Go to dashboard → Settings → JSON Model → Copy
 ```
 
-### It should have:
-```yaml
-scrape_configs:
-  - job_name: 'achat-app'
-    metrics_path: '/SpringMVC/actuator/prometheus'
-    static_configs:
-      - targets: ['app:8089']
-```
+---
 
-### If you need to update it, restart Prometheus:
+## 🎯 Next Steps
+
+1. **✅ Test locally** - Verify everything works
+2. **📊 Customize dashboards** - Add more panels, adjust queries
+3. **⚠️ Set up alerts** - Configure Prometheus alerts
+4. **☁️ Deploy to AWS** - Move to production
+5. **📈 Monitor production** - Watch your metrics
+
+---
+
+## 🌟 Quick Start Summary
+
 ```bash
-docker-compose restart prometheus
-```
+# 1. Start everything
+docker-compose up -d
 
----
+# 2. Wait for app to start
+docker logs -f achat-app
 
-## Step 5: Verify Application Metrics
+# 3. Open services
+# - Application: http://localhost:8089/SpringMVC
+# - Prometheus: http://localhost:9090
+# - Grafana: http://localhost:3000 (admin/admin)
+# - Jenkins: http://localhost:8080
 
-### Check if your app is exposing metrics:
+# 4. View dashboard in Grafana
+# Navigate to: Dashboards → Achat Application Monitoring
 
-```bash
-# From your host
-curl http://localhost:8089/SpringMVC/actuator/prometheus
-
-# You should see metrics like:
-# jvm_memory_used_bytes
-# http_server_requests_seconds_count
-# process_cpu_usage
-```
-
-### Check in Prometheus UI:
-1. Go to http://localhost:9090
-2. Go to **Status** → **Targets**
-3. Find `achat-app` job
-4. Status should be **UP** ✅
-
----
-
-## Step 6: Test Prometheus Queries
-
-In Prometheus UI (http://localhost:9090):
-
-### Try these queries:
-
-```promql
-# HTTP request rate
-rate(http_server_requests_seconds_count[5m])
-
-# JVM memory usage
-jvm_memory_used_bytes{area="heap"}
-
-# CPU usage
-process_cpu_usage
-
-# Active threads
-jvm_threads_live_threads
-
-# HTTP request duration (95th percentile)
-histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m]))
-```
-
-Click **Execute** and view graphs!
-
----
-
-## Step 7: Import Grafana Dashboards
-
-### Option A: Import Pre-built Dashboards
-
-1. In Grafana, click **+** → **Import**
-2. Enter Dashboard ID: `4701` (JVM Micrometer)
-3. Click **Load**
-4. Select Prometheus data source
-5. Click **Import**
-
-### Other useful dashboards:
-- **11378** - Spring Boot 2.1 Statistics
-- **12900** - Spring Boot Statistics  
-- **6756** - Spring Boot 2.x Statistics
-
----
-
-## Step 8: Create Custom Dashboard
-
-### Create Application Dashboard:
-
-1. Click **+** → **Create** → **Dashboard**
-2. Click **Add new panel**
-
-### Panel 1: HTTP Request Rate
-```promql
-sum(rate(http_server_requests_seconds_count[5m])) by (uri)
-```
-- Title: "Request Rate"
-- Visualization: Graph
-
-### Panel 2: Response Time (p95)
-```promql
-histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, uri))
-```
-- Title: "Response Time (95th percentile)"
-- Unit: seconds
-
-### Panel 3: Error Rate
-```promql
-sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
-```
-- Title: "Error Rate (5xx)"
-- Color: Red
-
-### Panel 4: JVM Memory
-```promql
-jvm_memory_used_bytes{area="heap"}
-```
-- Title: "Heap Memory Usage"
-- Unit: bytes
-
-### Panel 5: Active Threads
-```promql
-jvm_threads_live_threads
-```
-- Title: "Active Threads"
-
-### Panel 6: CPU Usage
-```promql
-process_cpu_usage
-```
-- Title: "CPU Usage"
-- Unit: percent (0-1)
-
-Click **Save dashboard** (💾 icon top right)
-
----
-
-## Step 9: Configure Alerts (Optional)
-
-### Create Alert in Grafana:
-
-1. Open a panel (e.g., Error Rate)
-2. Click panel title → **Edit**
-3. Go to **Alert** tab
-4. Click **Create Alert**
-
-### Example Alert: High Error Rate
-```
-Condition:
-WHEN avg() OF query(A, 5m, now) IS ABOVE 10
-
-Message:
-High error rate detected! Errors: {{ $value }}
-```
-
-5. Configure notification channel (Email, Slack, etc.)
-6. Save
-
----
-
-## Step 10: Set Up Alert Notifications
-
-### Configure Email Notifications:
-
-1. Go to **Alerting** (🔔) → **Notification channels**
-2. Click **Add channel**
-3. Configure:
-   - Name: `Email Alerts`
-   - Type: **Email**
-   - Addresses: `your-email@example.com`
-4. Click **Send Test**
-5. Save
-
-### Configure Slack (Optional):
-
-1. Create Slack Webhook URL
-2. Add channel in Grafana
-3. Type: **Slack**
-4. URL: Your webhook URL
-5. Test and Save
-
----
-
-## Step 11: Monitor Kubernetes (If Using K8s)
-
-### Add Kubernetes Monitoring:
-
-1. Update `prometheus.yml`:
-```yaml
-scrape_configs:
-  - job_name: 'kubernetes-pods'
-    kubernetes_sd_configs:
-      - role: pod
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-        action: keep
-        regex: true
-```
-
-2. Import K8s dashboards in Grafana:
-   - **3119** - Kubernetes cluster monitoring
-   - **7249** - Kubernetes Cluster
-   - **8588** - Kubernetes Deployment Statistics
-
----
-
-## Step 12: Export and Backup Dashboards
-
-### Export Dashboard:
-1. Open dashboard
-2. Click **⚙️** (Dashboard settings)
-3. Click **JSON Model**
-4. Copy JSON
-5. Save to file: `grafana/dashboards/achat-dashboard.json`
-
-### Backup:
-```bash
-# Backup Grafana data
-docker exec achat-grafana tar czf /tmp/grafana-backup.tar.gz /var/lib/grafana
-docker cp achat-grafana:/tmp/grafana-backup.tar.gz ./grafana-backup.tar.gz
-```
-
----
-
-## Step 13: Provision Dashboards Automatically
-
-Create `grafana/provisioning/dashboards/dashboard.yml`:
-
-```yaml
-apiVersion: 1
-
-providers:
-  - name: 'Achat Dashboards'
-    orgId: 1
-    folder: ''
-    type: file
-    disableDeletion: false
-    updateIntervalSeconds: 10
-    allowUiUpdates: true
-    options:
-      path: /etc/grafana/provisioning/dashboards
-```
-
-Place dashboard JSON files in `grafana/provisioning/dashboards/`
-
-Restart Grafana:
-```bash
-docker-compose restart grafana
-```
-
----
-
-## Step 14: Jenkins Pipeline Monitoring
-
-### Add Monitoring to Jenkinsfile:
-
-The **CONFIGURE MONITORING** stage is already in your Jenkinsfile!
-
-It will verify:
-- Prometheus scraping
-- Application metrics endpoints
-- Health checks
-
----
-
-## Useful Prometheus Queries
-
-```promql
-# Request rate by endpoint
-sum(rate(http_server_requests_seconds_count[5m])) by (uri)
-
-# Average response time
-rate(http_server_requests_seconds_sum[5m]) / rate(http_server_requests_seconds_count[5m])
-
-# Error rate
-sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
-
-# Success rate (percentage)
-sum(rate(http_server_requests_seconds_count{status=~"2.."}[5m])) / sum(rate(http_server_requests_seconds_count[5m])) * 100
-
-# JVM memory usage percentage
-(jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) * 100
-
-# Garbage collection time
-rate(jvm_gc_pause_seconds_sum[5m])
-
-# Database connection pool
-hikaricp_connections_active
-hikaricp_connections_idle
-
-# Tomcat threads
-tomcat_threads_busy_threads
-tomcat_threads_current_threads
-```
-
----
-
-## Common Issues and Solutions
-
-### 🔴 Target is DOWN in Prometheus
-**Check:**
-```bash
-# Is application running?
-docker ps | grep achat-app
-
-# Are actuator endpoints enabled?
+# 5. Generate traffic
 curl http://localhost:8089/SpringMVC/actuator/health
-curl http://localhost:8089/SpringMVC/actuator/prometheus
 
-# Check prometheus config
-docker exec achat-prometheus cat /etc/prometheus/prometheus.yml
-```
-
-### 🔴 No data in Grafana
-**Fix:**
-1. Verify Prometheus data source is configured
-2. Check Prometheus has data (go to Prometheus UI)
-3. Verify time range in Grafana (top right)
-4. Try query in Prometheus first
-
-### 🔴 Grafana login issues
-**Reset admin password:**
-```bash
-docker exec -it achat-grafana grafana-cli admin reset-admin-password newpassword
+# 6. Watch metrics update in Grafana!
 ```
 
 ---
 
-## Monitoring Best Practices
-
-✅ **Set up alerts for critical metrics**  
-✅ **Monitor both technical and business metrics**  
-✅ **Keep dashboards simple and focused**  
-✅ **Use consistent time ranges**  
-✅ **Document what each metric means**  
-✅ **Set up notification channels**  
-✅ **Review metrics regularly**  
-✅ **Test alerts (false positives vs false negatives)**  
-
----
-
-## Performance Tuning
-
-### Optimize Prometheus:
-```yaml
-# prometheus.yml
-global:
-  scrape_interval: 15s  # How often to scrape
-  evaluation_interval: 15s  # How often to evaluate rules
-  scrape_timeout: 10s  # Timeout for scrapes
-```
-
-### Optimize Grafana:
-- Reduce dashboard refresh rate
-- Use recording rules for complex queries
-- Limit time ranges on heavy dashboards
-
----
-
-## Next Steps
-
-✅ **Monitoring configured!**  
-
-### Your Complete DevOps Pipeline Now Has:
-
-✅ **Code Quality**: SonarQube  
-✅ **Artifact Repository**: Nexus  
-✅ **Containerization**: Docker  
-✅ **Orchestration**: Kubernetes  
-✅ **Infrastructure**: Terraform  
-✅ **Monitoring**: Prometheus + Grafana  
-✅ **CI/CD**: Jenkins  
-
-### 🎉 Congratulations!
-
-You now have a **complete enterprise DevOps pipeline**!
-
----
-
-## Quick Reference URLs
-
-- **Jenkins**: http://localhost:8080
-- **SonarQube**: http://localhost:9000
-- **Nexus**: http://localhost:8081
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3000
-- **Application**: http://localhost:8089/SpringMVC/
-- **App Health**: http://localhost:8089/SpringMVC/actuator/health
-- **App Metrics**: http://localhost:8089/SpringMVC/actuator/prometheus
-
----
-
-## Additional Resources
-
-- [Prometheus Documentation](https://prometheus.io/docs/)
-- [Grafana Documentation](https://grafana.com/docs/)
-- [Micrometer Documentation](https://micrometer.io/docs)
-- [Spring Boot Actuator](https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html)
-
+**🎉 You're all set! Your monitoring stack is ready!**
