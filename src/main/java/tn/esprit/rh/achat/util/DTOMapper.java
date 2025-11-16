@@ -188,5 +188,32 @@ public class DTOMapper {
     public List<FactureDTO> toFactureDTOList(List<Facture> entities) {
         return entities.stream().map(this::toDTO).collect(Collectors.toList());
     }
+
+    // Reglement mappings
+    public ReglementDTO toDTO(Reglement entity) {
+        if (entity == null) return null;
+        ReglementDTO dto = new ReglementDTO();
+        dto.setIdReglement(entity.getIdReglement());
+        dto.setMontantPaye(entity.getMontantPaye());
+        dto.setMontantRestant(entity.getMontantRestant());
+        dto.setDateReglement(entity.getDateReglement());
+        dto.setPayee(entity.getPayee());
+        return dto;
+    }
+
+    public Reglement toEntity(ReglementDTO dto) {
+        if (dto == null) return null;
+        Reglement entity = new Reglement();
+        entity.setIdReglement(dto.getIdReglement());
+        entity.setMontantPaye(dto.getMontantPaye());
+        entity.setMontantRestant(dto.getMontantRestant());
+        entity.setDateReglement(dto.getDateReglement());
+        entity.setPayee(dto.getPayee());
+        return entity;
+    }
+
+    public List<ReglementDTO> toReglementDTOList(List<Reglement> entities) {
+        return entities.stream().map(this::toDTO).collect(Collectors.toList());
+    }
 }
 

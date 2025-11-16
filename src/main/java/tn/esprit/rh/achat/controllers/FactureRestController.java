@@ -47,11 +47,10 @@ public class FactureRestController {
         factureService.cancelFacture(factureId);
     }
 
-    // http://localhost:8089/SpringMVC/facture/getFactureByFournisseur/{fournisseur-id}
     @GetMapping("/getFactureByFournisseur/{fournisseur-id}")
     @ResponseBody
-    public List<Facture> getFactureByFournisseur(@PathVariable("fournisseur-id") Long fournisseurId) {
-        return factureService.getFacturesByFournisseur(fournisseurId);
+    public List<FactureDTO> getFactureByFournisseur(@PathVariable("fournisseur-id") Long fournisseurId) {
+        return dtoMapper.toFactureDTOList(factureService.getFacturesByFournisseur(fournisseurId));
     }
 
     // http://localhost:8089/SpringMVC/facture/assignOperateurToFacture/1/1
