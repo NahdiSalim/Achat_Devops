@@ -1,0 +1,541 @@
+{
+    "info": {
+        "_postman_id": "achat-api-collection",
+        "name": "Achat API - Complete CRUD",
+        "description": "Complete CRUD operations for Achat DevOps application",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Fournisseur",
+            "item": [
+                {
+                    "name": "GET All Fournisseurs",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/fournisseur/retrieve-all-fournisseurs",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "fournisseur",
+                                "retrieve-all-fournisseurs"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Fournisseur by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/fournisseur/retrieve-fournisseur/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "fournisseur",
+                                "retrieve-fournisseur",
+                                "1"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Add Fournisseur",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"code\": \"F001\",\n  \"libelle\": \"Tech Supplies Inc\",\n  \"categorieFournisseur\": \"ORDINAIRE\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/fournisseur/add-fournisseur",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "fournisseur",
+                                "add-fournisseur"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT Update Fournisseur",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"idFournisseur\": 1,\n  \"code\": \"F001-UPDATED\",\n  \"libelle\": \"Tech Supplies International\",\n  \"categorieFournisseur\": \"CONVENTIONNE\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/fournisseur/modify-fournisseur",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "fournisseur",
+                                "modify-fournisseur"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE Fournisseur",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/fournisseur/remove-fournisseur/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "fournisseur",
+                                "remove-fournisseur",
+                                "1"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Produit",
+            "item": [
+                {
+                    "name": "GET All Produits",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/produit/retrieve-all-produits",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "produit",
+                                "retrieve-all-produits"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Produit by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/produit/retrieve-produit/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "produit",
+                                "retrieve-produit",
+                                "1"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Add Produit",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"codeProduit\": \"P001\",\n  \"libelleProduit\": \"Laptop Dell XPS 15\",\n  \"prix\": 1299.99,\n  \"dateCreation\": \"2024-01-15\",\n  \"dateDerniereModification\": \"2024-01-15\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/produit/add-produit",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "produit",
+                                "add-produit"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT Update Produit",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"idProduit\": 1,\n  \"codeProduit\": \"P001-UPD\",\n  \"libelleProduit\": \"Laptop Dell XPS 15 - Updated\",\n  \"prix\": 1199.99,\n  \"dateCreation\": \"2024-01-15\",\n  \"dateDerniereModification\": \"2024-11-16\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/produit/modify-produit",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "produit",
+                                "modify-produit"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE Produit",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/produit/remove-produit/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "produit",
+                                "remove-produit",
+                                "1"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Stock",
+            "item": [
+                {
+                    "name": "GET All Stocks",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/stock/retrieve-all-stocks",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "stock",
+                                "retrieve-all-stocks"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Stock by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/stock/retrieve-stock/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "stock",
+                                "retrieve-stock",
+                                "1"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Add Stock",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"libelleStock\": \"Warehouse A - Electronics\",\n  \"qte\": 150,\n  \"qteMin\": 20\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/stock/add-stock",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "stock",
+                                "add-stock"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT Update Stock",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"idStock\": 1,\n  \"libelleStock\": \"Warehouse A - Electronics Updated\",\n  \"qte\": 180,\n  \"qteMin\": 25\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/stock/modify-stock",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "stock",
+                                "modify-stock"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE Stock",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/stock/remove-stock/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "stock",
+                                "remove-stock",
+                                "1"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Operateur",
+            "item": [
+                {
+                    "name": "GET All Operateurs",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/operateur/retrieve-all-operateurs",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "operateur",
+                                "retrieve-all-operateurs"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Operateur by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/operateur/retrieve-operateur/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "operateur",
+                                "retrieve-operateur",
+                                "1"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Add Operateur",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"nom\": \"Dupont\",\n  \"prenom\": \"Jean\",\n  \"password\": \"password123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/operateur/add-operateur",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "operateur",
+                                "add-operateur"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT Update Operateur",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"idOperateur\": 1,\n  \"nom\": \"Dupont\",\n  \"prenom\": \"Jean-Claude\",\n  \"password\": \"newPassword123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/operateur/modify-operateur",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "operateur",
+                                "modify-operateur"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE Operateur",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/operateur/remove-operateur/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "operateur",
+                                "remove-operateur",
+                                "1"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Categorie Produit",
+            "item": [
+                {
+                    "name": "GET All Categories",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/categorieProduit/retrieve-all-categorieProduit",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "categorieProduit",
+                                "retrieve-all-categorieProduit"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Categorie by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/categorieProduit/retrieve-categorieProduit/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "categorieProduit",
+                                "retrieve-categorieProduit",
+                                "1"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Add Categorie",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"codeCategorie\": \"CAT001\",\n  \"libelleCategorie\": \"Electronics\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/categorieProduit/add-categorieProduit",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "categorieProduit",
+                                "add-categorieProduit"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE Categorie",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/categorieProduit/remove-categorieProduit/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "categorieProduit",
+                                "remove-categorieProduit",
+                                "1"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8089/SpringMVC",
+            "type": "string"
+        }
+    ]
+}

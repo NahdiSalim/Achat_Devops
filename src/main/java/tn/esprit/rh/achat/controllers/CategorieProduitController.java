@@ -3,8 +3,9 @@ package tn.esprit.rh.achat.controllers;
 import io.swagger.annotations.Api;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import tn.esprit.rh.achat.entities.CategorieProduit;
+import tn.esprit.rh.achat.dto.CategorieProduitDTO;
 import tn.esprit.rh.achat.services.ICategorieProduitService;
+import tn.esprit.rh.achat.util.DTOMapper;
 
 import java.util.List;
 
@@ -15,42 +16,38 @@ public class CategorieProduitController {
 
 	@Autowired
 	ICategorieProduitService categorieProduitService;
+
+	@Autowired
+	DTOMapper dtoMapper;
 	
-	// http://localhost:8089/SpringMVC/categorieProduit/retrieve-all-categorieProduit
 	@GetMapping("/retrieve-all-categorieProduit")
 	@ResponseBody
-	public List<CategorieProduit> getCategorieProduit() {
-		List<CategorieProduit> list = categorieProduitService.retrieveAllCategorieProduits();
-		return list;
+	public List<CategorieProduitDTO> getCategorieProduit() {
+		return dtoMapper.toCategorieProduitDTOList(categorieProduitService.retrieveAllCategorieProduits());
 	}
 
-	// http://localhost:8089/SpringMVC/categorieProduit/retrieve-categorieProduit/8
 	@GetMapping("/retrieve-categorieProduit/{categorieProduit-id}")
 	@ResponseBody
-	public CategorieProduit retrieveCategorieProduit(@PathVariable("categorieProduit-id") Long categorieProduitId) {
-		return categorieProduitService.retrieveCategorieProduit(categorieProduitId);
+	public CategorieProduitDTO retrieveCategorieProduit(@PathVariable("categorieProduit-id") Long categorieProduitId) {
+		return dtoMapper.toDTO(categorieProduitService.retrieveCategorieProduit(categorieProduitId));
 	}
 
-	// http://localhost:8089/SpringMVC/categorieProduit/add-categorieProduit
 	@PostMapping("/add-categorieProduit")
 	@ResponseBody
-	public CategorieProduit addCategorieProduit(@RequestBody CategorieProduit cp) {
-		CategorieProduit categorieProduit = categorieProduitService.addCategorieProduit(cp);
-		return categorieProduit;
+	public CategorieProduitDTO addCategorieProduit(@RequestBody CategorieProduitDTO dto) {
+		return dtoMapper.toDTO(categorieProduitService.addCategorieProduit(dtoMapper.toEntity(dto)));
 	}
 
-	// http://localhost:8089/SpringMVC/categorieProduit/remove-categorieProduit/{categorieProduit-id}
 	@DeleteMapping("/remove-categorieProduit/{categorieProduit-id}")
 	@ResponseBody
 	public void removeCategorieProduit(@PathVariable("categorieProduit-id") Long categorieProduitId) {
 		categorieProduitService.deleteCategorieProduit(categorieProduitId);
 	}
 
-	// http://localhost:8089/SpringMVC/categorieProduit/modify-categorieProduit
 	@PutMapping("/modify-categorieProduit")
 	@ResponseBody
-	public CategorieProduit modifyCategorieProduit(@RequestBody CategorieProduit categorieProduit) {
-		return categorieProduitService.updateCategorieProduit(categorieProduit);
+	public CategorieProduitDTO modifyCategorieProduit(@RequestBody CategorieProduitDTO dto) {
+		return dtoMapper.toDTO(categorieProduitService.updateCategorieProduit(dtoMapper.toEntity(dto)));
 	}
 
 	

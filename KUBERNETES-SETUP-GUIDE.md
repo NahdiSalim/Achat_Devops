@@ -67,7 +67,7 @@ kubectl create secret docker-registry dockerhub-secret \
   --docker-server=https://index.docker.io/v1/ \
   --docker-username=salimnahdi \
   --docker-password=Salim09531699 \
-  --docker-email=your-email@example.com \
+  --docker-email=salim.nahdi@etudiant-fst.utm.tn \
   -n achat-app
 
 # Create MySQL secret

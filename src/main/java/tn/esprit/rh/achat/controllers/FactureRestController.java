@@ -4,8 +4,9 @@ import io.swagger.annotations.Api;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
-import tn.esprit.rh.achat.entities.Facture;
+import tn.esprit.rh.achat.dto.FactureDTO;
 import tn.esprit.rh.achat.services.IFactureService;
+import tn.esprit.rh.achat.util.DTOMapper;
 
 import java.util.Date;
 import java.util.List;
@@ -20,34 +21,26 @@ public class FactureRestController {
     @Autowired
     IFactureService factureService;
 
-    // http://localhost:8089/SpringMVC/facture/retrieve-all-factures
+    @Autowired
+    DTOMapper dtoMapper;
+
     @GetMapping("/retrieve-all-factures")
     @ResponseBody
-    public List<Facture> getFactures() {
-        List<Facture> list = factureService.retrieveAllFactures();
-        return list;
+    public List<FactureDTO> getFactures() {
+        return dtoMapper.toFactureDTOList(factureService.retrieveAllFactures());
     }
 
-    // http://localhost:8089/SpringMVC/facture/retrieve-facture/8
     @GetMapping("/retrieve-facture/{facture-id}")
     @ResponseBody
-    public Facture retrieveFacture(@PathVariable("facture-id") Long factureId) {
-        return factureService.retrieveFacture(factureId);
+    public FactureDTO retrieveFacture(@PathVariable("facture-id") Long factureId) {
+        return dtoMapper.toDTO(factureService.retrieveFacture(factureId));
     }
 
-    // http://localhost:8089/SpringMVC/facture/add-facture/{fournisseur-id}
     @PostMapping("/add-facture")
     @ResponseBody
-    public Facture addFacture(@RequestBody Facture f) {
-        Facture facture = factureService.addFacture(f);
-        return facture;
+    public FactureDTO addFacture(@RequestBody FactureDTO dto) {
+        return dtoMapper.toDTO(factureService.addFacture(dtoMapper.toEntity(dto)));
     }
-
-    /*
-     * une facture peut etre annulé si elle a été saisie par erreur Pour ce
-     * faire, il suffit de mettre le champs active à false
-     */
-    // http://localhost:8089/SpringMVC/facture/cancel-facture/{facture-id}
     @PutMapping("/cancel-facture/{facture-id}")
     @ResponseBody
     public void cancelFacture(@PathVariable("facture-id") Long factureId) {
