@@ -167,31 +167,3 @@ resource "aws_security_group" "app" {
     }
   )
 }
-
-# Outputs
-output "vpc_id" {
-  description = "VPC ID"
-  value       = aws_vpc.main.id
-}
-
-output "public_subnet_ids" {
-  description = "Public Subnet IDs"
-  value       = [aws_subnet.public_1.id, aws_subnet.public_2.id]
-}
-
-output "app_security_group_id" {
-  description = "Application Security Group ID"
-  value       = aws_security_group.app.id
-}
-
-output "summary" {
-  description = "Infrastructure Summary"
-  value = {
-    vpc_id              = aws_vpc.main.id
-    vpc_cidr            = aws_vpc.main.cidr_block
-    public_subnets      = [aws_subnet.public_1.id, aws_subnet.public_2.id]
-    availability_zones  = var.availability_zones
-    security_group      = aws_security_group.app.id
-    environment         = var.environment
-  }
-}
