@@ -411,9 +411,9 @@ pipeline {
                                 echo "Testing AWS credentials..."
                                 aws sts get-caller-identity
 
-                                # Initialize Terraform
+                                # Initialize Terraform (without backend for now)
                                 echo "Initializing Terraform..."
-                                terraform init
+                                terraform init -backend=false
 
                                 # Validate configuration
                                 echo "Validating Terraform configuration..."

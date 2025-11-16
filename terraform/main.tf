@@ -1,4 +1,5 @@
-# Terraform Configuration for Achat Application Infrastructure
+# Simplified Terraform Configuration for Achat Application
+# This is a basic configuration to test AWS connectivity and create basic infrastructure
 
 terraform {
   required_version = ">= 1.0"
@@ -8,19 +9,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0"
-    }
-  }
-
-  # Backend configuration for state management
-  backend "s3" {
-    bucket         = "achat-terraform-state"
-    key            = "achat/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "achat-terraform-locks"
   }
 }
 
@@ -37,11 +25,6 @@ provider "aws" {
   }
 }
 
-# Docker Provider Configuration
-provider "docker" {
-  host = var.docker_host
-}
-
 # Local Variables
 locals {
   app_name = "achat"
@@ -52,163 +35,163 @@ locals {
   }
 }
 
-# Modules
+# VPC - Virtual Private Cloud
+resource "aws_vpc" "main" {
+  cidr_block           = var.vpc_cidr
+  enable_dns_hostnames = true
+  enable_dns_support   = true
 
-# Network Module - VPC, Subnets, Security Groups
-module "network" {
-  source = "./modules/network"
-  
-  vpc_cidr             = var.vpc_cidr
-  availability_zones   = var.availability_zones
-  public_subnet_cidrs  = var.public_subnet_cidrs
-  private_subnet_cidrs = var.private_subnet_cidrs
-  environment          = var.environment
-  app_name             = local.app_name
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.app_name}-vpc-${var.environment}"
+    }
+  )
 }
 
-# Database Module - RDS MySQL
-module "database" {
-  source = "./modules/database"
-  
-  vpc_id                = module.network.vpc_id
-  private_subnet_ids    = module.network.private_subnet_ids
-  db_security_group_ids = [module.network.db_security_group_id]
-  
-  db_name               = var.db_name
-  db_username           = var.db_username
-  db_password           = var.db_password
-  db_instance_class     = var.db_instance_class
-  db_allocated_storage  = var.db_allocated_storage
-  
-  environment = var.environment
-  app_name    = local.app_name
+# Internet Gateway
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.app_name}-igw-${var.environment}"
+    }
+  )
 }
 
-# Compute Module - EC2 instances for application
-module "compute" {
-  source = "./modules/compute"
-  
-  vpc_id                 = module.network.vpc_id
-  public_subnet_ids      = module.network.public_subnet_ids
-  app_security_group_ids = [module.network.app_security_group_id]
-  
-  instance_type          = var.instance_type
-  instance_count         = var.instance_count
-  key_name               = var.key_name
-  docker_image           = var.docker_image
-  docker_tag             = var.docker_tag
-  
-  db_endpoint            = module.database.db_endpoint
-  db_name                = var.db_name
-  db_username            = var.db_username
-  db_password            = var.db_password
-  
-  environment = var.environment
-  app_name    = local.app_name
+# Public Subnet 1
+resource "aws_subnet" "public_1" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_cidrs[0]
+  availability_zone       = var.availability_zones[0]
+  map_public_ip_on_launch = true
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.app_name}-public-subnet-1-${var.environment}"
+      Type = "public"
+    }
+  )
 }
 
-# Load Balancer Module
-module "load_balancer" {
-  source = "./modules/load_balancer"
-  
-  vpc_id                = module.network.vpc_id
-  public_subnet_ids     = module.network.public_subnet_ids
-  alb_security_group_id = module.network.alb_security_group_id
-  
-  target_instance_ids = module.compute.instance_ids
-  
-  environment = var.environment
-  app_name    = local.app_name
+# Public Subnet 2
+resource "aws_subnet" "public_2" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_cidrs[1]
+  availability_zone       = var.availability_zones[1]
+  map_public_ip_on_launch = true
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.app_name}-public-subnet-2-${var.environment}"
+      Type = "public"
+    }
+  )
 }
 
-# Monitoring Module - CloudWatch
-module "monitoring" {
-  source = "./modules/monitoring"
-  
-  instance_ids = module.compute.instance_ids
-  db_instance_id = module.database.db_instance_id
-  alb_arn_suffix = module.load_balancer.alb_arn_suffix
-  
-  environment = var.environment
-  app_name    = local.app_name
-}
+# Route Table for Public Subnets
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
 
-# Docker Containers (Local deployment)
-resource "docker_network" "achat_network" {
-  name = "achat-network"
-}
-
-resource "docker_container" "mysql" {
-  count = var.deploy_local ? 1 : 0
-  
-  image = "mysql:8.0"
-  name  = "achat-mysql"
-  
-  env = [
-    "MYSQL_ROOT_PASSWORD=${var.db_password}",
-    "MYSQL_DATABASE=${var.db_name}",
-    "MYSQL_USER=${var.db_username}",
-    "MYSQL_PASSWORD=${var.db_password}"
-  ]
-  
-  ports {
-    internal = 3306
-    external = 3306
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
   }
-  
-  networks_advanced {
-    name = docker_network.achat_network.name
-  }
-  
-  volumes {
-    volume_name    = "mysql_data"
-    container_path = "/var/lib/mysql"
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.app_name}-public-rt-${var.environment}"
+    }
+  )
 }
 
-resource "docker_container" "app" {
-  count = var.deploy_local ? 1 : 0
-  
-  image = "${var.docker_image}:${var.docker_tag}"
-  name  = "achat-app"
-  
-  depends_on = [docker_container.mysql]
-  
-  env = [
-    "SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${var.db_name}",
-    "SPRING_DATASOURCE_USERNAME=${var.db_username}",
-    "SPRING_DATASOURCE_PASSWORD=${var.db_password}"
-  ]
-  
-  ports {
-    internal = 8089
-    external = 8089
+# Route Table Association for Public Subnet 1
+resource "aws_route_table_association" "public_1" {
+  subnet_id      = aws_subnet.public_1.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Route Table Association for Public Subnet 2
+resource "aws_route_table_association" "public_2" {
+  subnet_id      = aws_subnet.public_2.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Security Group for Application
+resource "aws_security_group" "app" {
+  name        = "${local.app_name}-app-sg-${var.environment}"
+  description = "Security group for Achat application"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "HTTP from anywhere"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
-  
-  networks_advanced {
-    name = docker_network.achat_network.name
+
+  ingress {
+    description = "Spring Boot app port"
+    from_port   = 8089
+    to_port     = 8089
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow all outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.app_name}-app-sg-${var.environment}"
+    }
+  )
 }
 
 # Outputs
 output "vpc_id" {
   description = "VPC ID"
-  value       = module.network.vpc_id
+  value       = aws_vpc.main.id
 }
 
-output "alb_dns_name" {
-  description = "Application Load Balancer DNS Name"
-  value       = module.load_balancer.alb_dns_name
+output "public_subnet_ids" {
+  description = "Public Subnet IDs"
+  value       = [aws_subnet.public_1.id, aws_subnet.public_2.id]
 }
 
-output "db_endpoint" {
-  description = "Database Endpoint"
-  value       = module.database.db_endpoint
-  sensitive   = true
+output "app_security_group_id" {
+  description = "Application Security Group ID"
+  value       = aws_security_group.app.id
 }
 
-output "application_url" {
-  description = "Application URL"
-  value       = "http://${module.load_balancer.alb_dns_name}/SpringMVC"
+output "summary" {
+  description = "Infrastructure Summary"
+  value = {
+    vpc_id              = aws_vpc.main.id
+    vpc_cidr            = aws_vpc.main.cidr_block
+    public_subnets      = [aws_subnet.public_1.id, aws_subnet.public_2.id]
+    availability_zones  = var.availability_zones
+    security_group      = aws_security_group.app.id
+    environment         = var.environment
+  }
 }
-
