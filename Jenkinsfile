@@ -60,15 +60,14 @@ pipeline {
                     echo '========================================='
                 }
 
-                checkout scm
+                // Checkout from GitHub (replace with your repo URL)
+                git branch: 'main', url: 'https://github.com/NahdiSalim/Achat_Devops.git'
 
                 script {
                     // Get Git commit info
                     env.GIT_COMMIT_MSG = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     env.GIT_AUTHOR = sh(script: 'git log -1 --pretty=%an', returnStdout: true).trim()
 
-                    echo "Branch: ${env.GIT_BRANCH}"
-                    echo "Commit: ${env.GIT_COMMIT}"
                     echo "Commit Message: ${env.GIT_COMMIT_MSG}"
                     echo "Author: ${env.GIT_AUTHOR}"
                 }
@@ -397,16 +396,24 @@ pipeline {
                     echo '========================================='
                 }
 
-                sh '''
-                    export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
-                    export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                        export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+                        export AWS_DEFAULT_REGION="us-east-1"
 
-                    echo "Testing AWS credentials..."
-                    aws sts get-caller-identity
+                        echo "Testing AWS credentials..."
+                        aws sts get-caller-identity
 
-                    echo ""
-                    echo "✅ AWS credentials verified successfully!"
-                '''
+                        echo ""
+                        echo "✅ AWS credentials verified successfully!"
+                    '''
+                }
             }
         }
 
@@ -427,43 +434,55 @@ pipeline {
                     echo "Terraform state directory: ${TERRAFORM_STATE_DIR}"
                 """
 
-                // Terraform Init
-                dir("${TERRAFORM_DIR}") {
-                    sh """
-                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
-                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    // Terraform Init
+                    dir("${TERRAFORM_DIR}") {
+                        sh """
+                            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+                            export AWS_DEFAULT_REGION="us-east-1"
 
-                        echo "Initializing Terraform..."
-                        terraform init \
-                            -backend-config="path=${TERRAFORM_STATE_DIR}/terraform.tfstate" \
-                            -upgrade
-                    """
-                }
+                            echo "Initializing Terraform..."
+                            terraform init \
+                                -backend-config="path=${TERRAFORM_STATE_DIR}/terraform.tfstate" \
+                                -upgrade
+                        """
+                    }
 
-                // Terraform Plan
-                dir("${TERRAFORM_DIR}") {
-                    sh """
-                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
-                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                    // Terraform Plan
+                    dir("${TERRAFORM_DIR}") {
+                        sh """
+                            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+                            export AWS_DEFAULT_REGION="us-east-1"
 
-                        echo "Planning Terraform changes..."
-                        terraform plan \
-                            -var='docker_image=${TF_VAR_docker_image}' \
-                            -var='deploy_mode=${TF_VAR_deploy_mode}' \
-                            -refresh=false \
-                            -out=tfplan
-                    """
-                }
+                            echo "Planning Terraform changes..."
+                            terraform plan \
+                                -var='docker_image=${TF_VAR_docker_image}' \
+                                -var='deploy_mode=${TF_VAR_deploy_mode}' \
+                                -refresh=false \
+                                -out=tfplan
+                        """
+                    }
 
-                // Terraform Apply
-                dir("${TERRAFORM_DIR}") {
-                    sh '''
-                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
-                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                    // Terraform Apply
+                    dir("${TERRAFORM_DIR}") {
+                        sh """
+                            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+                            export AWS_DEFAULT_REGION="us-east-1"
 
-                        echo "Applying Terraform changes..."
-                        terraform apply -auto-approve tfplan
-                    '''
+                            echo "Applying Terraform changes..."
+                            terraform apply -auto-approve tfplan
+                        """
+                    }
                 }
 
                 script {
@@ -485,25 +504,34 @@ pipeline {
                     echo "AWS Region: ${AWS_REGION}"
                 }
 
-                // Get EKS cluster info
-                dir("${TERRAFORM_DIR}") {
-                    sh '''
-                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
-                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    // Get EKS cluster info
+                    dir("${TERRAFORM_DIR}") {
+                        sh '''
+                            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+                            export AWS_DEFAULT_REGION="us-east-1"
 
-                        echo "EKS Cluster Name:"
-                        terraform output -raw eks_cluster_name || echo "N/A"
+                            echo "EKS Cluster Name:"
+                            terraform output -raw eks_cluster_name || echo "N/A"
 
-                        echo ""
-                        echo "EKS Cluster Endpoint:"
-                        terraform output -raw eks_cluster_endpoint || echo "N/A"
-                    '''
-                }
+                            echo ""
+                            echo "EKS Cluster Endpoint:"
+                            terraform output -raw eks_cluster_endpoint || echo "N/A"
+                        '''
+                    }
 
-                // Deploy application to EKS
-                sh """
-                    export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
-                    export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                    // Deploy application to EKS
+                    sh """
+                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                        export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+                        export AWS_DEFAULT_REGION="us-east-1"
 
                     # Get EKS cluster name
                     CLUSTER_NAME=\$(cd ${TERRAFORM_DIR} && terraform output -raw eks_cluster_name)
@@ -691,21 +719,23 @@ EOF
                     kubectl get pods -n ${K8S_NAMESPACE}
                 """
 
-                // Wait for LoadBalancer URL
-                script {
-                    echo ''
-                    echo '========================================='
-                    echo 'Waiting for LoadBalancer URL...'
-                    echo '========================================='
-                }
+                    // Wait for LoadBalancer URL
+                    script {
+                        echo ''
+                        echo '========================================='
+                        echo 'Waiting for LoadBalancer URL...'
+                        echo '========================================='
+                    }
 
-                sh """
-                    export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
-                    export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                    sh """
+                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                        export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
+                        export AWS_DEFAULT_REGION="us-east-1"
 
-                    # Get EKS cluster name
-                    CLUSTER_NAME=\$(cd ${TERRAFORM_DIR} && terraform output -raw eks_cluster_name)
-                    aws eks update-kubeconfig --name \${CLUSTER_NAME} --region ${AWS_REGION}
+                        # Get EKS cluster name
+                        CLUSTER_NAME=\$(cd ${TERRAFORM_DIR} && terraform output -raw eks_cluster_name)
+                        aws eks update-kubeconfig --name \${CLUSTER_NAME} --region ${AWS_REGION}
 
                     echo "Waiting for LoadBalancer to get external URL (this may take 2-3 minutes)..."
                     echo ""
@@ -770,22 +800,23 @@ EOF
 
                     if [ -z "\${APP_URL}" ] || [ "\${APP_URL}" = "null" ]; then
                         echo "⚠️  LoadBalancer URL not available yet"
-                        echo "   Check with: kubectl get svc achat-app-service -n ${K8S_NAMESPACE}"
-                    fi
-                """
+                            echo "   Check with: kubectl get svc achat-app-service -n ${K8S_NAMESPACE}"
+                        fi
+                    """
 
-                script {
-                    echo ''
-                    echo '════════════════════════════════════════════════════════'
-                    echo '✅ DEPLOYMENT COMPLETE!'
-                    echo '════════════════════════════════════════════════════════'
-                    echo ''
-                    echo 'Useful kubectl commands:'
-                    echo "  kubectl get pods -n ${K8S_NAMESPACE}"
-                    echo "  kubectl get svc -n ${K8S_NAMESPACE}"
-                    echo "  kubectl logs -n ${K8S_NAMESPACE} -l app=${K8S_DEPLOYMENT_NAME}"
-                    echo "  kubectl describe svc achat-app-service -n ${K8S_NAMESPACE}"
-                    echo ''
+                    script {
+                        echo ''
+                        echo '════════════════════════════════════════════════════════'
+                        echo '✅ DEPLOYMENT COMPLETE!'
+                        echo '════════════════════════════════════════════════════════'
+                        echo ''
+                        echo 'Useful kubectl commands:'
+                        echo "  kubectl get pods -n ${K8S_NAMESPACE}"
+                        echo "  kubectl get svc -n ${K8S_NAMESPACE}"
+                        echo "  kubectl logs -n ${K8S_NAMESPACE} -l app=${K8S_DEPLOYMENT_NAME}"
+                        echo "  kubectl describe svc achat-app-service -n ${K8S_NAMESPACE}"
+                        echo ''
+                    }
                 }
             }
         }
