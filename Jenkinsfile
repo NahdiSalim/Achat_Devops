@@ -38,9 +38,7 @@ pipeline {
 
         // AWS & Terraform Configuration
         AWS_REGION = 'us-east-1'
-        TERRAFORM_DIR = 'terraform'
-        TF_VAR_docker_image = "${DOCKER_REGISTRY}/${DOCKER_USERNAME}/${DOCKER_IMAGE}"
-        TF_VAR_deploy_mode = 'eks'
+        TERRAFORM_DIR = '.'  // Root directory where terraform-eks.tf is located
         TERRAFORM_STATE_DIR = "/var/jenkins_home/terraform-states/${JOB_NAME}"
 
         // Kubernetes Configuration
@@ -402,11 +400,6 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     sh '''
-                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                        export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-                        export AWS_DEFAULT_REGION="us-east-1"
-
                         echo "Testing AWS credentials..."
                         aws sts get-caller-identity
 
@@ -440,49 +433,22 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     // Terraform Init
-                    dir("${TERRAFORM_DIR}") {
-                        sh """
-                            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-                            export AWS_DEFAULT_REGION="us-east-1"
-
-                            echo "Initializing Terraform..."
-                            terraform init \
-                                -backend-config="path=${TERRAFORM_STATE_DIR}/terraform.tfstate" \
-                                -upgrade
-                        """
-                    }
+                    sh '''
+                        echo "Initializing Terraform for EKS..."
+                        terraform init -upgrade
+                    '''
 
                     // Terraform Plan
-                    dir("${TERRAFORM_DIR}") {
-                        sh """
-                            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-                            export AWS_DEFAULT_REGION="us-east-1"
-
-                            echo "Planning Terraform changes..."
-                            terraform plan \
-                                -var='docker_image=${TF_VAR_docker_image}' \
-                                -var='deploy_mode=${TF_VAR_deploy_mode}' \
-                                -refresh=false \
-                                -out=tfplan
-                        """
-                    }
+                    sh '''
+                        echo "Planning Terraform changes..."
+                        terraform plan -out=tfplan
+                    '''
 
                     // Terraform Apply
-                    dir("${TERRAFORM_DIR}") {
-                        sh """
-                            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-                            export AWS_DEFAULT_REGION="us-east-1"
-
-                            echo "Applying Terraform changes..."
-                            terraform apply -auto-approve tfplan
-                        """
-                    }
+                    sh '''
+                        echo "Applying Terraform changes..."
+                        terraform apply -auto-approve tfplan
+                    '''
                 }
 
                 script {
@@ -500,7 +466,7 @@ pipeline {
                     echo '========================================='
                     echo 'Stage 13: Deploying to AWS EKS'
                     echo '========================================='
-                    echo "Docker Image: ${TF_VAR_docker_image}"
+                    echo "Docker Image: ${DOCKER_REGISTRY}/${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
                     echo "AWS Region: ${AWS_REGION}"
                 }
 
@@ -510,31 +476,19 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     // Get EKS cluster info
-                    dir("${TERRAFORM_DIR}") {
-                        sh '''
-                            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                            export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-                            export AWS_DEFAULT_REGION="us-east-1"
+                    sh '''
+                        echo "EKS Cluster Name:"
+                        terraform output -raw cluster_name || echo "N/A"
 
-                            echo "EKS Cluster Name:"
-                            terraform output -raw eks_cluster_name || echo "N/A"
-
-                            echo ""
-                            echo "EKS Cluster Endpoint:"
-                            terraform output -raw eks_cluster_endpoint || echo "N/A"
-                        '''
-                    }
+                        echo ""
+                        echo "EKS Cluster Endpoint:"
+                        terraform output -raw cluster_endpoint || echo "N/A"
+                    '''
 
                     // Deploy application to EKS
                     sh """
-                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                        export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-                        export AWS_DEFAULT_REGION="us-east-1"
-
-                    # Get EKS cluster name
-                    CLUSTER_NAME=\$(cd ${TERRAFORM_DIR} && terraform output -raw eks_cluster_name)
+                        # Get EKS cluster name
+                        CLUSTER_NAME=\$(terraform output -raw cluster_name)
 
                     # Configure kubectl
                     aws eks update-kubeconfig --name \${CLUSTER_NAME} --region ${AWS_REGION}
@@ -632,10 +586,10 @@ spec:
       labels:
         app: ${K8S_DEPLOYMENT_NAME}
     spec:
-      containers:
-      - name: ${K8S_DEPLOYMENT_NAME}
-        image: ${TF_VAR_docker_image}
-        imagePullPolicy: Always
+                      containers:
+                      - name: ${K8S_DEPLOYMENT_NAME}
+                        image: ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}
+                        imagePullPolicy: Always
         ports:
         - containerPort: 8089
           name: http
@@ -728,13 +682,8 @@ EOF
                     }
 
                     sh """
-                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                        export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-                        export AWS_DEFAULT_REGION="us-east-1"
-
                         # Get EKS cluster name
-                        CLUSTER_NAME=\$(cd ${TERRAFORM_DIR} && terraform output -raw eks_cluster_name)
+                        CLUSTER_NAME=\$(terraform output -raw cluster_name)
                         aws eks update-kubeconfig --name \${CLUSTER_NAME} --region ${AWS_REGION}
 
                     echo "Waiting for LoadBalancer to get external URL (this may take 2-3 minutes)..."
@@ -839,7 +788,7 @@ EOF
             echo ''
             echo "Build: #${env.BUILD_NUMBER}"
             echo "Commit: ${env.GIT_COMMIT_MSG}"
-            echo "Docker Image: ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+            echo "Docker Image: ${DOCKER_REGISTRY}/${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
             echo "SonarQube: ${SONAR_HOST_URL}"
             echo "Nexus: http://${NEXUS_URL}"
             echo ''
