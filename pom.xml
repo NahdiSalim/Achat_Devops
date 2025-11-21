@@ -72,15 +72,18 @@
 			<scope>test</scope>
 		</dependency>
 
+	<!-- SpringDoc OpenAPI (Swagger) - Modern alternative to Springfox -->
 	<dependency>
-		<groupId>io.springfox</groupId>
-		<artifactId>springfox-boot-starter</artifactId>
-		<version>3.0.0</version>
+		<groupId>org.springdoc</groupId>
+		<artifactId>springdoc-openapi-ui</artifactId>
+		<version>1.7.0</version>
 	</dependency>
+	
+	<!-- Swagger v2 Annotations for backward compatibility with existing @Api annotations -->
 	<dependency>
-		<groupId>io.springfox</groupId>
-		<artifactId>springfox-swagger-ui</artifactId>
-		<version>3.0.0</version>
+		<groupId>io.swagger</groupId>
+		<artifactId>swagger-annotations</artifactId>
+		<version>1.6.9</version>
 	</dependency>
 
 	<!-- Spring Boot Actuator for Monitoring -->

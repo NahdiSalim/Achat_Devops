@@ -1,68 +1,97 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+    }
+
     environment {
-        // Docker Registry Configuration
-        registry = 'salimnahdi/docker-spring-boot'
-        registryCredential = 'dockerhub'
-        dockerImage = ''
+        // Maven settings
+        MAVEN_OPTS = '-Xmx1024m'
+
+        // Project information
+        PROJECT_NAME = 'achat'
+        PROJECT_VERSION = '1.0'
+        ARTIFACT_NAME = "${PROJECT_NAME}-${PROJECT_VERSION}.jar"
+
+        // Docker Registry Configuration (YOUR CREDENTIALS)
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_USERNAME = 'salimnahdi'
+        DOCKER_IMAGE_NAME = 'docker-spring-boot'
+        DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
+        DOCKER_IMAGE = "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+        DOCKER_CREDENTIAL_ID = 'dockerhub'
+        DOCKER_FULL_IMAGE = "${DOCKER_REGISTRY}/${DOCKER_USERNAME}/${DOCKER_IMAGE}"
 
         // SonarQube Configuration
-        SONAR_URL = 'http://achat-sonarqube:9000'
+        SONAR_HOST_URL = 'http://achat-sonarqube:9000'
         SONAR_PROJECT_KEY = 'achat-project'
+        SONAR_PROJECT_NAME = 'Achat DevOps Application'
 
         // Nexus Configuration
-        NEXUS_URL = 'http://achat-nexus:8081'
+        NEXUS_URL = 'achat-nexus:8081'
         NEXUS_REPOSITORY = 'achat-releases'
         NEXUS_SNAPSHOT_REPOSITORY = 'achat-snapshots'
         NEXUS_CREDENTIAL_ID = 'nexus-credentials'
 
+        // AWS & Terraform Configuration
+        AWS_REGION = 'us-east-1'
+        TERRAFORM_DIR = 'terraform'
+        TF_VAR_docker_image = "${DOCKER_REGISTRY}/${DOCKER_USERNAME}/${DOCKER_IMAGE}"
+        TF_VAR_deploy_mode = 'eks'
+        TERRAFORM_STATE_DIR = "/var/jenkins_home/terraform-states/${JOB_NAME}"
+
         // Kubernetes Configuration
-        K8S_NAMESPACE = 'default'
+        K8S_NAMESPACE = 'achat-app'
         K8S_DEPLOYMENT_NAME = 'achat-app'
-
-        // Application Configuration
-        APP_NAME = 'achat'
-        APP_VERSION = "${env.BUILD_NUMBER}"
-
-        // AWS/Terraform Configuration
-        DEPLOY_TO_AWS = 'true'  // Set to 'true' to enable Terraform infrastructure provisioning
     }
 
     stages {
+        // ========================================================================
+        // STAGE 1: CHECKOUT GIT
+        // ========================================================================
         stage('🔍 CHECKOUT GIT') {
             steps {
-                echo '======================================'
-                echo '       Checking out source code       '
-                echo '======================================'
-                git branch: 'main', url: 'https://github.com/NahdiSalim/Achat_Devops.git'
+                script {
+                    echo '========================================='
+                    echo 'Stage 1: Checking out code from GitHub'
+                    echo '========================================='
+                }
+
+                checkout scm
 
                 script {
-                    // Get Git commit info for better traceability
+                    // Get Git commit info
                     env.GIT_COMMIT_MSG = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     env.GIT_AUTHOR = sh(script: 'git log -1 --pretty=%an', returnStdout: true).trim()
-                    echo "Commit: ${env.GIT_COMMIT_MSG}"
+
+                    echo "Branch: ${env.GIT_BRANCH}"
+                    echo "Commit: ${env.GIT_COMMIT}"
+                    echo "Commit Message: ${env.GIT_COMMIT_MSG}"
                     echo "Author: ${env.GIT_AUTHOR}"
                 }
             }
         }
 
+        // ========================================================================
+        // STAGE 2: PREPARATION
+        // ========================================================================
         stage('🔧 PREPARATION') {
             steps {
-                echo '======================================'
-                echo '       Preparing build environment    '
-                echo '======================================'
+                script {
+                    echo '========================================='
+                    echo 'Stage 2: Preparing Build Environment'
+                    echo '========================================='
+                }
 
-                // Make Maven wrapper executable (Unix/Linux agents)
                 sh '''
                     if [ -f mvnw ]; then
                         chmod +x mvnw
-                        echo "✅ Maven wrapper is now executable"
+                        echo "✅ Maven wrapper is executable"
                     fi
-                '''
 
-                // Display build information
-                sh '''
                     echo "Java Version:"
                     java -version
                     echo ""
@@ -72,120 +101,154 @@ pipeline {
             }
         }
 
-        stage('🧹 CLEAN') {
+        // ========================================================================
+        // STAGE 3: MVN CLEAN & COMPILE
+        // ========================================================================
+        stage('🧹 MVN CLEAN') {
             steps {
-                echo '======================================'
-                echo '       Cleaning previous builds       '
-                echo '======================================'
-                sh './mvnw clean -B'
+                script {
+                    echo '========================================='
+                    echo 'Stage 3: Maven Clean & Compile'
+                    echo '========================================='
+                }
+
+                sh './mvnw clean compile -B'
+
+                script {
+                    echo '✅ Build cleaned and compiled successfully'
+                }
             }
         }
 
-        stage('🔨 COMPILE') {
+        // ========================================================================
+        // STAGE 4: ARTIFACT CONSTRUCTION (PACKAGE)
+        // ========================================================================
+        stage('📦 ARTIFACT CONSTRUCTION') {
             steps {
-                echo '======================================'
-                echo '       Compiling source code          '
-                echo '======================================'
-                sh './mvnw compile -B'
+                script {
+                    echo '========================================='
+                    echo 'Stage 4: Building JAR Artifact'
+                    echo '========================================='
+                }
+
+                sh './mvnw package -DskipTests -B'
+
+                script {
+                    echo "✅ Application packaged: ${ARTIFACT_NAME}"
+                }
+            }
+
+            post {
+                success {
+                    archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+                    script {
+                        echo '✅ Artifacts archived successfully'
+                    }
+                }
             }
         }
 
+        // ========================================================================
+        // STAGE 5: UNIT TESTS
+        // ========================================================================
         stage('🧪 UNIT TESTS') {
             steps {
-                echo '======================================'
-                echo '       Running Unit Tests             '
-                echo '======================================'
+                script {
+                    echo '========================================='
+                    echo 'Stage 5: Running Unit Tests'
+                    echo '========================================='
+                }
+
                 sh './mvnw test -B'
+
+                script {
+                    echo '✅ All unit tests passed'
+                }
             }
+
             post {
                 always {
-                    // Publish test results
                     junit '**/target/surefire-reports/*.xml'
-
-                    // Publish JaCoCo coverage report
                     jacoco(
                         execPattern: '**/target/jacoco.exec',
                         classPattern: '**/target/classes',
                         sourcePattern: '**/src/main/java'
                     )
+                    script {
+                        echo '✅ Test results and coverage published'
+                    }
                 }
             }
         }
 
-        stage('📦 PACKAGE') {
+        // ========================================================================
+        // STAGE 6: SONARQUBE ANALYSIS
+        // ========================================================================
+        stage('📊 MVN SONARQUBE') {
             steps {
-                echo '======================================'
-                echo '       Building JAR artifact          '
-                echo '======================================'
-                sh './mvnw package -DskipTests -B'
-            }
-        }
-
-        stage('📊 SONARQUBE ANALYSIS') {
-            steps {
-                echo '======================================'
-                echo '       Running SonarQube Analysis     '
-                echo '======================================'
+                script {
+                    echo '========================================='
+                    echo 'Stage 6: SonarQube Code Analysis'
+                    echo '========================================='
+                }
 
                 withCredentials([string(credentialsId: 'sonar-token-jenkins', variable: 'SONAR_TOKEN')]) {
                     sh """
                         ./mvnw sonar:sonar \
                             -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                            -Dsonar.host.url=${SONAR_URL} \
-                            -Dsonar.login=${SONAR_TOKEN} \
+                            -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
+                            -Dsonar.host.url=${SONAR_HOST_URL} \
+                            -Dsonar.login=\${SONAR_TOKEN} \
                             -Dsonar.java.binaries=target/classes \
                             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
                             -B
                     """
                 }
 
-                echo '✅ SonarQube analysis completed!'
-                echo "📊 View results at: ${SONAR_URL}"
-            }
-        }
+                script {
+                    echo '✅ SonarQube analysis completed'
+                    echo "📊 View results at: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
+                }
 
-        stage('🔍 SONARQUBE QUALITY GATE') {
-            steps {
-                echo '======================================'
-                echo '       Checking Quality Gate          '
-                echo '======================================'
-
+                // Quality Gate Check
                 timeout(time: 5, unit: 'MINUTES') {
                     script {
                         try {
-                            // Wait for SonarQube quality gate result
                             def qg = waitForQualityGate()
+                            echo "Quality Gate status: ${qg.status}"
+
                             if (qg.status != 'OK') {
-                                echo "⚠️  Quality Gate Status: ${qg.status}"
-                                echo '⚠️  WARNING: Quality gate failed but continuing pipeline...'
-                            // unstable(message: "Quality Gate failed: ${qg.status}")
+                                echo '⚠️  Quality Gate failed but continuing pipeline...'
+                                echo "View details: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                             } else {
                                 echo '✅ Quality Gate passed!'
                             }
                         } catch (Exception e) {
                             echo "⚠️  Could not check quality gate: ${e.message}"
-                            echo '⚠️  Continuing pipeline anyway...'
+                            echo 'Continuing pipeline anyway...'
                         }
                     }
                 }
             }
         }
 
+        // ========================================================================
+        // STAGE 7: PUBLISH TO NEXUS
+        // ========================================================================
         stage('📤 PUBLISH TO NEXUS') {
             steps {
-                echo '======================================'
-                echo '       Publishing artifact to Nexus   '
-                echo '======================================'
+                script {
+                    echo '========================================='
+                    echo 'Stage 7: Publishing Artifacts to Nexus'
+                    echo '========================================='
+                }
 
                 script {
-                    // Read POM version
                     def pom = readMavenPom file: 'pom.xml'
                     def version = pom.version
                     def artifactId = pom.artifactId
                     def groupId = pom.groupId
                     def packaging = pom.packaging ?: 'jar'
-
-                    // Determine repository (snapshot or release)
                     def repository = version.endsWith('SNAPSHOT') ? NEXUS_SNAPSHOT_REPOSITORY : NEXUS_REPOSITORY
                     def jarFile = "target/${artifactId}-${version}.${packaging}"
 
@@ -193,21 +256,11 @@ pipeline {
                     echo "Repository: ${repository}"
                     echo "JAR File: ${jarFile}"
 
-                    // Verify JAR file exists
-                    def jarExists = fileExists(jarFile)
-                    if (!jarExists) {
-                        echo "⚠️  WARNING: JAR file not found at ${jarFile}"
-                        echo '⚠️  Listing target directory contents:'
-                        sh 'ls -la target/*.jar || echo "No JAR files found"'
-                        error("JAR file not found: ${jarFile}")
-                    }
-
-                    // Upload artifact to Nexus using Nexus Artifact Uploader plugin
                     try {
                         nexusArtifactUploader(
                             nexusVersion: 'nexus3',
                             protocol: 'http',
-                            nexusUrl: 'achat-nexus:8081',
+                            nexusUrl: NEXUS_URL,
                             groupId: groupId,
                             version: version,
                             repository: repository,
@@ -229,232 +282,510 @@ pipeline {
                         )
 
                         echo '✅ Artifact published to Nexus!'
-                        echo "📦 View at: ${NEXUS_URL}/#browse/browse:${repository}"
+                        echo "📦 View at: http://${NEXUS_URL}/#browse/browse:${repository}"
                     } catch (Exception e) {
                         echo "⚠️  Nexus upload failed: ${e.message}"
-                        echo '⚠️  Error details:'
-                        e.printStackTrace()
-                        echo '⚠️  Continuing pipeline anyway...'
-                        // Don't fail the build for Nexus upload issues
+                        echo 'Continuing pipeline anyway...'
                         currentBuild.result = 'UNSTABLE'
                     }
                 }
             }
         }
 
-        stage('🐳 BUILD DOCKER IMAGE') {
-            steps {
-                echo '======================================'
-                echo '       Building Docker Image          '
-                echo '======================================'
-
-                script {
-                    try {
-                        // Check if Docker is available
-                        sh 'docker --version'
-
-                        // Build Docker image with multiple tags
-                        dockerImage = docker.build("${registry}:${env.BUILD_NUMBER}")
-                        echo "✅ Docker image built: ${registry}:${env.BUILD_NUMBER}"
-                    } catch (Exception e) {
-                        echo "⚠️  Docker build skipped: ${e.message}"
-                        echo 'ℹ️   Docker is not available in this Jenkins environment'
-                        echo 'ℹ️   To enable Docker: mount Docker socket or use Docker-in-Docker'
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
-            }
-        }
-
-        stage('🔒 DOCKER IMAGE SCAN') {
+        // ========================================================================
+        // STAGE 8: BUILD DOCKER IMAGE
+        // ========================================================================
+        stage('🐳 BUILDING DOCKER IMAGE') {
             when {
-                expression { return dockerImage != null && dockerImage != '' }
+                expression { return fileExists('Dockerfile') }
             }
             steps {
-                echo '======================================'
-                echo '       Scanning Docker Image          '
-                echo '======================================'
+                script {
+                    echo '========================================='
+                    echo 'Stage 8: Building Docker Image'
+                    echo '========================================='
+                    echo "Building: ${DOCKER_FULL_IMAGE}"
+                }
+
+                sh "ls -lh target/${PROJECT_NAME}-${PROJECT_VERSION}.jar"
+
+                sh """
+                    docker build \
+                        -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} \
+                        -t ${DOCKER_IMAGE_NAME}:latest \
+                        .
+                """
 
                 script {
-                    try {
-                        // Basic image inspection
-                        sh """
-                            docker image inspect ${registry}:${env.BUILD_NUMBER}
-                            docker image history ${registry}:${env.BUILD_NUMBER}
-                        """
-
-                        echo '✅ Docker image scan completed'
-                    // Note: Add Trivy or similar tool for vulnerability scanning
-                    } catch (Exception e) {
-                        echo "⚠️  Image scan skipped: ${e.message}"
-                    }
+                    echo '✅ Docker image built successfully'
+                    sh "docker images | grep ${DOCKER_IMAGE_NAME}"
                 }
             }
         }
 
-        stage('📤 PUSH DOCKER IMAGE') {
-            when {
-                expression { return dockerImage != null && dockerImage != '' }
-            }
+        // ========================================================================
+        // STAGE 9: DEPLOY DOCKER IMAGE TO DOCKERHUB
+        // ========================================================================
+        stage('📤 DEPLOY DOCKER IMAGE') {
             steps {
-                echo '======================================'
-                echo '       Pushing to DockerHub           '
-                echo '======================================'
+                script {
+                    echo '========================================='
+                    echo 'Stage 9: Pushing to DockerHub'
+                    echo '========================================='
+                }
+
+                withCredentials([usernamePassword(
+                    credentialsId: "${DOCKER_CREDENTIAL_ID}",
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "Logging in to DockerHub..."
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin ${DOCKER_REGISTRY}
+                    '''
+
+                    sh """
+                        # Tag images with your DockerHub username
+                        docker tag ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}
+                        docker tag ${DOCKER_IMAGE_NAME}:latest ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest
+
+                        # Push both tags
+                        docker push ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}
+                        docker push ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest
+                    """
+
+                    sh 'docker logout ${DOCKER_REGISTRY}'
+                }
 
                 script {
-                    try {
-                        docker.withRegistry('', registryCredential) {
-                            // Push with build number tag
-                            dockerImage.push("${env.BUILD_NUMBER}")
-
-                            // Push with latest tag
-                            dockerImage.push('latest')
-
-                            echo '✅ Docker image pushed successfully!'
-                            echo "🐳 Image: ${registry}:${env.BUILD_NUMBER}"
-                            echo "🐳 Image: ${registry}:latest"
-                        }
-                    } catch (Exception e) {
-                        echo "⚠️  Docker push skipped: ${e.message}"
-                        echo 'ℹ️   Docker image was not built or Docker is not available'
-                    }
+                    echo '✅ Docker image pushed successfully'
+                    echo "🐳 Image: ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+                    echo "🐳 Image: ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest"
                 }
             }
         }
 
+        // ========================================================================
+        // STAGE 10: CLEANUP LOCAL DOCKER IMAGES
+        // ========================================================================
         stage('🧹 CLEANUP DOCKER IMAGES') {
-            when {
-                expression { return dockerImage != null && dockerImage != '' }
-            }
             steps {
-                echo '======================================'
-                echo '       Cleaning up local images       '
-                echo '======================================'
-
                 script {
-                    try {
-                        sh """
-                            docker rmi ${registry}:${env.BUILD_NUMBER} || true
-                            docker rmi ${registry}:latest || true
-                            echo "✅ Local Docker images cleaned"
-                        """
-                    } catch (Exception e) {
-                        echo "⚠️  Docker cleanup skipped: ${e.message}"
-                    }
+                    echo '========================================='
+                    echo 'Stage 10: Cleaning Local Docker Images'
+                    echo '========================================='
                 }
+
+                sh """
+                    docker rmi ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} || true
+                    docker rmi ${DOCKER_IMAGE_NAME}:latest || true
+                    docker rmi ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} || true
+                    docker rmi ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest || true
+                    echo "✅ Local Docker images cleaned"
+                """
             }
         }
 
-        stage('☸️  DEPLOY TO KUBERNETES') {
-            // Kubernetes deployment stage (requires kubectl configured)
-            when {
-                expression { return false }  // Disabled by default - enable when K8s cluster is ready
-            }
+        // ========================================================================
+        // STAGE 11: TEST AWS CREDENTIALS
+        // ========================================================================
+        stage('🔐 TEST AWS CREDENTIALS') {
             steps {
-                echo '======================================'
-                echo '       Deploying to Kubernetes        '
-                echo '======================================'
-
                 script {
-                    try {
-                        // Apply Kubernetes manifests
-                        sh """
-                            # Replace image tag in deployment
-                            sed -i 's|IMAGE_TAG|${env.BUILD_NUMBER}|g' k8s/deployment.yaml
-
-                            # Apply configurations
-                            kubectl apply -f k8s/namespace.yaml || true
-                            kubectl apply -f k8s/configmap.yaml
-                            kubectl apply -f k8s/secrets.yaml
-                            kubectl apply -f k8s/deployment.yaml
-                            kubectl apply -f k8s/service.yaml
-
-                            # Wait for rollout
-                            kubectl rollout status deployment/${K8S_DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
-
-                            # Get deployment info
-                            kubectl get deployments -n ${K8S_NAMESPACE}
-                            kubectl get services -n ${K8S_NAMESPACE}
-                            kubectl get pods -n ${K8S_NAMESPACE}
-                        """
-
-                        echo '✅ Kubernetes deployment successful!'
-                    } catch (Exception e) {
-                        echo "⚠️  Kubernetes deployment skipped: ${e.message}"
-                        echo 'ℹ️   This is normal if K8s is not configured yet'
-                    }
+                    echo '========================================='
+                    echo 'Stage 11: Verifying AWS Credentials'
+                    echo '========================================='
                 }
+
+                sh '''
+                    export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                    export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                    echo "Testing AWS credentials..."
+                    aws sts get-caller-identity
+
+                    echo ""
+                    echo "✅ AWS credentials verified successfully!"
+                '''
             }
         }
 
+        // ========================================================================
+        // STAGE 12: TERRAFORM INFRASTRUCTURE PROVISIONING
+        // ========================================================================
         stage('🏗️  TERRAFORM INFRASTRUCTURE') {
             steps {
-                echo '======================================'
-                echo '       Provisioning Infrastructure    '
-                echo '======================================'
+                script {
+                    echo '========================================='
+                    echo 'Stage 12: Provisioning AWS Infrastructure'
+                    echo '========================================='
+                }
+
+                // Setup Terraform state directory
+                sh """
+                    mkdir -p ${TERRAFORM_STATE_DIR}
+                    echo "Terraform state directory: ${TERRAFORM_STATE_DIR}"
+                """
+
+                // Terraform Init
+                dir("${TERRAFORM_DIR}") {
+                    sh """
+                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                        echo "Initializing Terraform..."
+                        terraform init \
+                            -backend-config="path=${TERRAFORM_STATE_DIR}/terraform.tfstate" \
+                            -upgrade
+                    """
+                }
+
+                // Terraform Plan
+                dir("${TERRAFORM_DIR}") {
+                    sh """
+                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                        echo "Planning Terraform changes..."
+                        terraform plan \
+                            -var='docker_image=${TF_VAR_docker_image}' \
+                            -var='deploy_mode=${TF_VAR_deploy_mode}' \
+                            -refresh=false \
+                            -out=tfplan
+                    """
+                }
+
+                // Terraform Apply
+                dir("${TERRAFORM_DIR}") {
+                    sh '''
+                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                        echo "Applying Terraform changes..."
+                        terraform apply -auto-approve tfplan
+                    '''
+                }
 
                 script {
-                    dir('terraform') {
-                        withCredentials([
-                            string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                            string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
-                            string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
-                        ]) {
-                            sh '''
-                                # Export AWS credentials
-                                export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                                export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                                export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
-                                export AWS_DEFAULT_REGION="us-east-1"
-
-                                # Test AWS connection
-                                echo "Testing AWS credentials..."
-                                aws sts get-caller-identity
-
-                                # Initialize Terraform (without backend for now)
-                                echo "Initializing Terraform..."
-                                terraform init -backend=false
-
-                                # Validate configuration
-                                echo "Validating Terraform configuration..."
-                                terraform validate
-
-                                # Plan infrastructure changes
-                                echo "Creating Terraform plan..."
-                                terraform plan -out=tfplan
-
-                                # Apply changes (with auto-approve for automation)
-                                # terraform apply -auto-approve tfplan
-
-                                echo "✅ Terraform plan created"
-                                echo "ℹ️   Run 'terraform apply' manually to provision infrastructure"
-                            '''
-                        }
-                    }
+                    echo '✅ Terraform infrastructure provisioned!'
                 }
             }
         }
 
-        stage('📈 CONFIGURE MONITORING') {
+        // ========================================================================
+        // STAGE 13: DEPLOY TO AWS EKS
+        // ========================================================================
+        stage('☸️  DEPLOY TO AWS EKS') {
             steps {
-                echo '======================================'
-                echo '       Configuring Monitoring         '
-                echo '======================================'
+                script {
+                    echo '========================================='
+                    echo 'Stage 13: Deploying to AWS EKS'
+                    echo '========================================='
+                    echo "Docker Image: ${TF_VAR_docker_image}"
+                    echo "AWS Region: ${AWS_REGION}"
+                }
+
+                // Get EKS cluster info
+                dir("${TERRAFORM_DIR}") {
+                    sh '''
+                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                        echo "EKS Cluster Name:"
+                        terraform output -raw eks_cluster_name || echo "N/A"
+
+                        echo ""
+                        echo "EKS Cluster Endpoint:"
+                        terraform output -raw eks_cluster_endpoint || echo "N/A"
+                    '''
+                }
+
+                // Deploy application to EKS
+                sh """
+                    export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                    export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                    # Get EKS cluster name
+                    CLUSTER_NAME=\$(cd ${TERRAFORM_DIR} && terraform output -raw eks_cluster_name)
+
+                    # Configure kubectl
+                    aws eks update-kubeconfig --name \${CLUSTER_NAME} --region ${AWS_REGION}
+
+                    # Create namespace if not exists
+                    kubectl create namespace ${K8S_NAMESPACE} || true
+
+                    # Deploy MySQL Database
+                    echo "Deploying MySQL database..."
+                    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: ${K8S_NAMESPACE}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: ${K8S_NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "root"
+        - name: MYSQL_DATABASE
+          value: "achatdb"
+        - name: MYSQL_USER
+          value: "achat_user"
+        - name: MYSQL_PASSWORD
+          value: "achat_password"
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: ${K8S_NAMESPACE}
+spec:
+  selector:
+    app: mysql
+  ports:
+  - port: 3306
+    targetPort: 3306
+  clusterIP: None
+EOF
+
+                    # Wait for MySQL to be ready
+                    echo "Waiting for MySQL to be ready..."
+                    kubectl wait --for=condition=ready pod -l app=mysql -n ${K8S_NAMESPACE} --timeout=300s || true
+                    sleep 30
+
+                    # Deploy Application
+                    echo "Deploying Achat application..."
+                    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${K8S_DEPLOYMENT_NAME}
+  namespace: ${K8S_NAMESPACE}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ${K8S_DEPLOYMENT_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${K8S_DEPLOYMENT_NAME}
+    spec:
+      containers:
+      - name: ${K8S_DEPLOYMENT_NAME}
+        image: ${TF_VAR_docker_image}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8089
+          name: http
+          protocol: TCP
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:mysql://mysql:3306/achatdb?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC"
+        - name: SPRING_DATASOURCE_USERNAME
+          value: "achat_user"
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: "achat_password"
+        - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+          value: "update"
+        - name: SERVER_SERVLET_CONTEXT_PATH
+          value: "/SpringMVC"
+        readinessProbe:
+          httpGet:
+            path: /SpringMVC/actuator/health
+            port: 8089
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /SpringMVC/actuator/health
+            port: 8089
+          initialDelaySeconds: 90
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: achat-app-service
+  namespace: ${K8S_NAMESPACE}
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    app: ${K8S_DEPLOYMENT_NAME}
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8089
+  sessionAffinity: None
+  externalTrafficPolicy: Cluster
+EOF
+
+                    echo ""
+                    echo "✅ Application deployed to EKS!"
+                    echo ""
+
+                    # Wait for deployment
+                    echo "Waiting for deployment to be ready..."
+                    kubectl wait --for=condition=available --timeout=600s deployment/${K8S_DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} || true
+
+                    # Show deployment status
+                    echo ""
+                    echo "========================================="
+                    echo "Deployment Status"
+                    echo "========================================="
+                    kubectl get deployments -n ${K8S_NAMESPACE}
+                    echo ""
+                    kubectl get services -n ${K8S_NAMESPACE}
+                    echo ""
+                    kubectl get pods -n ${K8S_NAMESPACE}
+                """
+
+                // Wait for LoadBalancer URL
+                script {
+                    echo ''
+                    echo '========================================='
+                    echo 'Waiting for LoadBalancer URL...'
+                    echo '========================================='
+                }
+
+                sh """
+                    export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                    export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                    # Get EKS cluster name
+                    CLUSTER_NAME=\$(cd ${TERRAFORM_DIR} && terraform output -raw eks_cluster_name)
+                    aws eks update-kubeconfig --name \${CLUSTER_NAME} --region ${AWS_REGION}
+
+                    echo "Waiting for LoadBalancer to get external URL (this may take 2-3 minutes)..."
+                    echo ""
+
+                    for i in {1..30}; do
+                        APP_URL=\$(kubectl get svc achat-app-service -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+
+                        if [ -n "\${APP_URL}" ] && [ "\${APP_URL}" != "null" ]; then
+                            echo "✅ LoadBalancer is ready!"
+                            echo ""
+                            echo "════════════════════════════════════════════════════════"
+                            echo "🎉  APPLICATION DEPLOYED SUCCESSFULLY!"
+                            echo "════════════════════════════════════════════════════════"
+                            echo ""
+                            echo "🌐 APPLICATION URLs:"
+                            echo ""
+                            echo "   📍 Main API:"
+                            echo "      http://\${APP_URL}/SpringMVC/"
+                            echo ""
+                            echo "   📚 Swagger UI (Test your endpoints here!):"
+                            echo "      http://\${APP_URL}/SpringMVC/swagger-ui.html"
+                            echo ""
+                            echo "   ❤️  Health Check:"
+                            echo "      http://\${APP_URL}/SpringMVC/actuator/health"
+                            echo ""
+                            echo "   📊 API Documentation (JSON):"
+                            echo "      http://\${APP_URL}/SpringMVC/v3/api-docs"
+                            echo ""
+                            echo "════════════════════════════════════════════════════════"
+                            echo ""
+
+                            # Test health endpoint
+                            echo "Testing application health..."
+                            sleep 60
+
+                            for j in {1..15}; do
+                                if curl -f -s "http://\${APP_URL}/SpringMVC/actuator/health" > /dev/null 2>&1; then
+                                    echo "✅ Application is healthy and responding!"
+                                    echo ""
+                                    echo "Health Status:"
+                                    curl -s "http://\${APP_URL}/SpringMVC/actuator/health"
+                                    echo ""
+                                    echo ""
+                                    echo "✅ You can now access Swagger UI at:"
+                                    echo "   http://\${APP_URL}/SpringMVC/swagger-ui.html"
+                                    break
+                                else
+                                    echo "Attempt \$j/15: Application not ready yet, waiting 20 seconds..."
+                                    sleep 20
+                                fi
+                            done
+
+                            break
+                        fi
+
+                        echo "Attempt \$i/30: LoadBalancer not ready yet, waiting 10 seconds..."
+                        sleep 10
+                    done
+
+                    # Final status check
+                    APP_URL=\$(kubectl get svc achat-app-service -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+                    if [ -z "\${APP_URL}" ] || [ "\${APP_URL}" = "null" ]; then
+                        echo "⚠️  LoadBalancer URL not available yet"
+                        echo "   Check with: kubectl get svc achat-app-service -n ${K8S_NAMESPACE}"
+                    fi
+                """
 
                 script {
-                    try {
-                        sh '''
-                            # Verify Prometheus is scraping the application
-                            echo "Prometheus URL: http://localhost:9090"
-                            echo "Grafana URL: http://localhost:3000"
-                            echo "Application Metrics: http://localhost:8089/SpringMVC/actuator/metrics"
-                            echo "Application Health: http://localhost:8089/SpringMVC/actuator/health"
-                        '''
-
-                        echo '✅ Monitoring endpoints configured'
-                    } catch (Exception e) {
-                        echo "⚠️  Monitoring configuration skipped: ${e.message}"
-                    }
+                    echo ''
+                    echo '════════════════════════════════════════════════════════'
+                    echo '✅ DEPLOYMENT COMPLETE!'
+                    echo '════════════════════════════════════════════════════════'
+                    echo ''
+                    echo 'Useful kubectl commands:'
+                    echo "  kubectl get pods -n ${K8S_NAMESPACE}"
+                    echo "  kubectl get svc -n ${K8S_NAMESPACE}"
+                    echo "  kubectl logs -n ${K8S_NAMESPACE} -l app=${K8S_DEPLOYMENT_NAME}"
+                    echo "  kubectl describe svc achat-app-service -n ${K8S_NAMESPACE}"
+                    echo ''
                 }
             }
         }
@@ -462,34 +793,27 @@ pipeline {
 
     post {
         always {
-            echo '======================================'
-            echo '       Pipeline Execution Summary     '
-            echo '======================================'
-
-            // Archive artifacts
+            echo '========================================='
+            echo 'Pipeline Execution Summary'
+            echo '========================================='
             archiveArtifacts artifacts: 'target/**/*.jar', allowEmptyArchive: true
-
-            // Clean workspace
-            cleanWs()
         }
 
         success {
             echo '✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅'
             echo '✅                                      ✅'
-            echo '✅     PIPELINE COMPLETED SUCCESSFULLY! ✅'
+            echo '✅  PIPELINE COMPLETED SUCCESSFULLY!    ✅'
             echo '✅                                      ✅'
             echo '✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅'
             echo ''
             echo "Build: #${env.BUILD_NUMBER}"
             echo "Commit: ${env.GIT_COMMIT_MSG}"
-            echo "Docker Image: ${registry}:${env.BUILD_NUMBER}"
-            echo "SonarQube: ${SONAR_URL}"
-            echo "Nexus: ${NEXUS_URL}"
-
-        // Send notification (optional - configure email/Slack)
-        // emailext body: "Build succeeded: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-        //          subject: "✅ Jenkins Build Success",
-        //          to: "team@achat.local"
+            echo "Docker Image: ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+            echo "SonarQube: ${SONAR_HOST_URL}"
+            echo "Nexus: http://${NEXUS_URL}"
+            echo ''
+            echo '🎉 Your application is now deployed on AWS EKS!'
+            echo '📚 Access Swagger UI from the LoadBalancer URL shown above'
         }
 
         failure {
@@ -501,11 +825,6 @@ pipeline {
             echo ''
             echo "Build: #${env.BUILD_NUMBER}"
             echo 'Check console output for details'
-
-        // Send notification (optional)
-        // emailext body: "Build failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-        //          subject: "❌ Jenkins Build Failed",
-        //          to: "team@achat.local"
         }
 
         unstable {
@@ -516,8 +835,8 @@ pipeline {
             echo '⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️ ⚠️'
             echo ''
             echo "Build: #${env.BUILD_NUMBER}"
-            echo 'ℹ️   Some optional stages were skipped (Nexus, Docker, K8s)'
-            echo 'ℹ️   Core functionality (build, test) completed successfully'
+            echo 'Some optional stages had issues (Nexus, SonarQube)'
+            echo 'Core functionality completed successfully'
         }
     }
 }
