@@ -110,31 +110,15 @@ resource "aws_route_table_association" "public_rta_2" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-# EKS Cluster IAM Role
-resource "aws_iam_role" "eks_cluster_role" {
-  name = "${var.cluster_name}-cluster-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "eks.amazonaws.com"
-      }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.eks_cluster_role.name
+# Use AWS Academy's pre-existing LabRole instead of creating new roles
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
 }
 
 # EKS Cluster
 resource "aws_eks_cluster" "eks_cluster" {
   name     = var.cluster_name
-  role_arn = aws_iam_role.eks_cluster_role.arn
+  role_arn = data.aws_iam_role.lab_role.arn
   version  = var.cluster_version
 
   vpc_config {
@@ -145,10 +129,6 @@ resource "aws_eks_cluster" "eks_cluster" {
     endpoint_public_access = true
   }
 
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy
-  ]
-
   tags = {
     Name        = var.cluster_name
     Environment = "dev"
@@ -156,42 +136,13 @@ resource "aws_eks_cluster" "eks_cluster" {
   }
 }
 
-# EKS Node Group IAM Role
-resource "aws_iam_role" "eks_node_role" {
-  name = "${var.cluster_name}-node-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ec2.amazonaws.com"
-      }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.eks_node_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.eks_node_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "eks_container_registry_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.eks_node_role.name
-}
+# Node group will also use LabRole (AWS Academy limitation)
 
 # EKS Node Group
 resource "aws_eks_node_group" "eks_nodes" {
   cluster_name    = aws_eks_cluster.eks_cluster.name
   node_group_name = "${var.cluster_name}-node-group"
-  node_role_arn   = aws_iam_role.eks_node_role.arn
+  node_role_arn   = data.aws_iam_role.lab_role.arn
   subnet_ids = [
     aws_subnet.public_subnet_1.id,
     aws_subnet.public_subnet_2.id
@@ -204,12 +155,6 @@ resource "aws_eks_node_group" "eks_nodes" {
   }
 
   instance_types = ["t3.medium"]
-
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_cni_policy,
-    aws_iam_role_policy_attachment.eks_container_registry_policy,
-  ]
 
   tags = {
     Name        = "${var.cluster_name}-node-group"

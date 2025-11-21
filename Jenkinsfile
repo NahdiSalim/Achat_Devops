@@ -411,13 +411,45 @@ pipeline {
         }
 
         // ========================================================================
-        // STAGE 12: TERRAFORM INFRASTRUCTURE PROVISIONING
+        // STAGE 12: CLEANUP PREVIOUS TERRAFORM (IF EXISTS)
+        // ========================================================================
+        stage('🧹 CLEANUP PREVIOUS TERRAFORM') {
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 12: Cleaning Up Previous Terraform State'
+                    echo '========================================='
+                }
+
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        echo "Checking for existing Terraform state..."
+
+                        if [ -f "terraform.tfstate" ]; then
+                            echo "Found existing state. Destroying previous infrastructure..."
+                            terraform destroy -auto-approve || echo "⚠️  Destroy failed, will continue anyway"
+                        else
+                            echo "No existing state found. Skipping cleanup."
+                        fi
+
+                        echo "✅ Cleanup complete!"
+                    '''
+                }
+            }
+        }
+
+        // ========================================================================
+        // STAGE 13: TERRAFORM INFRASTRUCTURE PROVISIONING
         // ========================================================================
         stage('🏗️  TERRAFORM INFRASTRUCTURE') {
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 12: Provisioning AWS Infrastructure'
+                    echo 'Stage 13: Provisioning AWS Infrastructure'
                     echo '========================================='
                 }
 
@@ -458,13 +490,13 @@ pipeline {
         }
 
         // ========================================================================
-        // STAGE 13: DEPLOY TO AWS EKS
+        // STAGE 14: DEPLOY TO AWS EKS
         // ========================================================================
         stage('☸️  DEPLOY TO AWS EKS') {
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 13: Deploying to AWS EKS'
+                    echo 'Stage 14: Deploying to AWS EKS'
                     echo '========================================='
                     echo "Docker Image: ${DOCKER_REGISTRY}/${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
                     echo "AWS Region: ${AWS_REGION}"
