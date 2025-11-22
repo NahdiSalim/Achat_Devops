@@ -341,7 +341,7 @@ pipeline {
                         echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin ${DOCKER_REGISTRY}
                     '''
 
-                    sh """
+                        sh """
                         # Tag images with your DockerHub username
                         docker tag ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}
                         docker tag ${DOCKER_IMAGE_NAME}:latest ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest
@@ -459,13 +459,13 @@ pipeline {
                     echo "Terraform state directory: ${TERRAFORM_STATE_DIR}"
                 """
 
-                withCredentials([
-                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
-                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
-                ]) {
-                    // Terraform Init
-                    sh '''
+                        withCredentials([
+                            string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                            string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                            string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                        ]) {
+                            // Terraform Init
+                            sh '''
                         echo "Initializing Terraform for EKS..."
                         terraform init -upgrade
                     '''
@@ -473,7 +473,7 @@ pipeline {
                     // Terraform Plan
                     sh '''
                         echo "Planning Terraform changes..."
-                        terraform plan -out=tfplan
+                                terraform plan -out=tfplan
                     '''
 
                     // Terraform Apply
@@ -481,7 +481,7 @@ pipeline {
                         echo "Applying Terraform changes..."
                         terraform apply -auto-approve tfplan
                     '''
-                }
+                        }
 
                 script {
                     echo '✅ Terraform infrastructure provisioned!'
@@ -507,8 +507,8 @@ pipeline {
                     string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
-                    // Get EKS cluster info
-                    sh '''
+                        // Get EKS cluster info
+                        sh '''
                         echo "EKS Cluster Name:"
                         terraform output -raw cluster_name || echo "N/A"
 
@@ -596,9 +596,17 @@ spec:
 EOF
 
                     # Wait for MySQL to be ready
-                    echo "Waiting for MySQL to be ready..."
-                    kubectl wait --for=condition=ready pod -l app=mysql -n ${K8S_NAMESPACE} --timeout=300s || true
-                    sleep 30
+                    echo "Waiting for MySQL to be ready (this may take 5-10 minutes for EBS volume provisioning)..."
+                    kubectl wait --for=condition=ready pod -l app=mysql -n ${K8S_NAMESPACE} --timeout=600s || {
+                        echo "⚠️  MySQL readiness check timed out, checking pod status..."
+                        kubectl get pods -n ${K8S_NAMESPACE} -l app=mysql
+                        kubectl describe pod -n ${K8S_NAMESPACE} -l app=mysql
+                        echo "Waiting 60 more seconds for MySQL to stabilize..."
+                        sleep 60
+                }
+
+                    echo "Checking MySQL pod status..."
+                    kubectl get pods -n ${K8S_NAMESPACE} -l app=mysql
 
                     # Deploy Application
                     echo "Deploying Achat application..."
@@ -618,10 +626,10 @@ spec:
       labels:
         app: ${K8S_DEPLOYMENT_NAME}
     spec:
-                      containers:
-                      - name: ${K8S_DEPLOYMENT_NAME}
-                        image: ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}
-                        imagePullPolicy: Always
+      containers:
+      - name: ${K8S_DEPLOYMENT_NAME}
+        image: ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}
+        imagePullPolicy: Always
         ports:
         - containerPort: 8089
           name: http
@@ -798,10 +806,10 @@ EOF
                         echo "  kubectl describe svc achat-app-service -n ${K8S_NAMESPACE}"
                         echo ''
                     }
-                }
             }
         }
     }
+}
 
     post {
         always {
